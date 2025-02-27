@@ -72,5 +72,5 @@ Found a bug? Want to suggest a feature? Open an **Issue** or a **Pull Request** 
 
 ---
 
-### 🛠️ Made with ❤️ by [Your Name]
+### 🛠️ Made with ❤️ by SanLiuk
 
