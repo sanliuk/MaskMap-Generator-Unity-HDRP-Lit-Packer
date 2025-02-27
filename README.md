@@ -69,6 +69,15 @@ This tool allows you to create a **Mask Map** compatible with **Unity's High Def
 Found a bug? Want to suggest a feature? Open an **Issue** or a **Pull Request** on GitHub! 🎉
 
 💬 For questions or support, feel free to reach out! 😊
+---
+
+## 💬 Join Our Community!
+
+Need help or want to learn more about **game development** and **3D modeling**?  
+Join our **Discord community** for support, discussions, and exclusive tutorials! 🎮🔥  
+
+[![Join our Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?logo=discord&logoColor=white)](https://discord.com/invite/8GBkm252cS)
+
 
 ---
 
