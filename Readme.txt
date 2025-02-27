@@ -8,26 +8,26 @@ This tool allows you to create a **Mask Map** compatible with **Unity's High Def
 
 ## ✨ Features
 
-✅ **Drag & Drop support** for quick texture loading 🎯  
-✅ **Invert channels** if needed ⚡  
-✅ **Automatic generation** of Mask Map and Detail Map 🖼️  
-✅ **Real-time previews** of loaded images 👀  
-✅ **Custom resolution support** (set your desired size!) 📏  
-✅ **Save the final Mask Map as a PNG file** 💾  
-✅ **Fully compatible with Unity HDRP** for advanced PBR rendering 🎮  
+- ✅ **Drag & Drop support** for quick texture loading 🎯
+- ✅ **Invert channels** if needed ⚡
+- ✅ **Automatic generation** of Mask Map and Detail Map 🖼️
+- ✅ **Real-time previews** of loaded images 👀
+- ✅ **Custom resolution support** (set your desired size!) 📏
+- ✅ **Save the final Mask Map as a PNG file** 💾
+- ✅ **Fully compatible with Unity HDRP** for advanced PBR rendering 🎮
 
 ---
 
 ## 🖌️ Mask Map Channels
 
 | **Channel** | **Content** |
-|-----------|-------------|
+|------------|------------|
 | **R (Red)** | Metallic ⚙️ |
 | **G (Green)** | Ambient Occlusion 🌿 |
 | **B (Blue)** | Detail Map (Optional) 🔍 |
 | **A (Alpha)** | Smoothness ✨ |
 
-💡 If no image is loaded for a given channel, a default white fill is used.
+> 💡 If no image is loaded for a given channel, a default white fill is used.
 
 ---
 
@@ -48,7 +48,7 @@ This tool allows you to create a **Mask Map** compatible with **Unity's High Def
 ## 🎮 How to Use
 
 1. **Drag and drop or select** images for **R, G, B, and A** channels.
-2. **(Optional)** Invert channels if needed using the checkboxes.
+2. *(Optional)* Invert channels if needed using the checkboxes.
 3. Set the **desired resolution**.
 4. Click **"Generate Mask Map"** to see the preview.
 5. Click **"Save Mask Map"** to export it!
@@ -72,5 +72,4 @@ Found a bug? Want to suggest a feature? Open an **Issue** or a **Pull Request** 
 
 ---
 
-### 🛠️ Made with ❤️ by SanLiuk
-
+### 🛠️ Made with ❤️ by San Liuk
