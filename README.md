@@ -3,7 +3,9 @@
 Welcome to **Mask Map HDRP Lit - Unity Shader Texture Packer**! 🎨🚀
 
 This tool allows you to create a **Mask Map** compatible with **Unity's High Definition Render Pipeline (HDRP)** by combining different textures into a single RGBA image. All with a simple, modern, and intuitive graphical interface!
-
+![ScreenShot Mask Map Generator](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap1.png)
+![ScreenShot Mask Map Generator](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap2.png)
+![Unity Workflow](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap3.png)
 ---
 
 ## ✨ Features
@@ -77,6 +79,7 @@ Need help or want to learn more about **game development** and **3D modeling**?
 Join our **Discord community** for support, discussions, and exclusive tutorials! 🎮🔥  
 
 [![Join our Discord](https://img.shields.io/badge/Join%20us%20on-Discord-5865F2?logo=discord&logoColor=white)](https://discord.com/invite/8GBkm252cS)
+
 
 
 ---
