@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog, BooleanVar, ttk, Canvas
 from tkinterdnd2 import TkinterDnD, DND_FILES
-from PIL import Image, ImageTk, ImageOps
+from PIL import Image, ImageTk, ImageOps, ImageEnhance
 
 def load_image(channel, filepath=None):
     if not filepath:
@@ -139,6 +139,14 @@ def load_normal_map():
         update_detail_preview("A")
         update_detail_preview("G")
 
+def desaturate_image(channel):
+    if detail_images[channel]:
+        img = detail_images[channel]
+        enhancer = ImageEnhance.Color(img)
+        img = enhancer.enhance(0)  # Desaturate the image
+        detail_images[channel] = img
+        update_detail_preview(channel)
+
 # Configure UI
 root = TkinterDnD.Tk()
 root.title("Mask Map Generator")
@@ -193,6 +201,10 @@ for i, (channel, name) in enumerate({"R": "Detail Albedo", "G": "Detail Normal Y
     
     clear_btn = ttk.Button(scrollable_frame, text="Clear", style="TButton", command=lambda c=channel: clear_detail_image(c))
     clear_btn.grid(row=i+2, column=3, padx=5, pady=5)
+    
+    if channel == "R":  # Add desaturate button only for Detail Albedo
+        desaturate_btn = ttk.Button(scrollable_frame, text="Desaturate", style="TButton", command=lambda c=channel: desaturate_image(c))
+        desaturate_btn.grid(row=i+2, column=4, padx=5, pady=5)
 
 # Generate detail map button
 generate_detail_btn = ttk.Button(scrollable_frame, text="Generate Detail Map", style="TButton", command=generate_detail_map)
