@@ -101,7 +101,7 @@ def generate_detail_map():
         status_label.config(text="⚠️ Select R, G, B, and A images for detail map!", foreground="red")
         return
     
-    size = (int(resolution_var.get()), int(resolution_var.get()))
+    size = (int(detail_resolution_var.get()), int(detail_resolution_var.get()))
     for key in detail_images:
         if detail_images[key]:
             img = detail_images[key].resize(size)
@@ -229,6 +229,14 @@ save_detail_btn.grid_remove()
 insert_detail_btn = ttk.Button(scrollable_frame, text="Insert Detail Map", style="TButton", command=insert_detail_map)
 insert_detail_btn.grid(row=9, column=0, columnspan=3, pady=10)
 insert_detail_btn.grid_remove()
+
+# Detail map resolution label and entry
+detail_resolution_label = ttk.Label(scrollable_frame, text="Detail Map Resolution:", style="TLabel")
+detail_resolution_label.grid(row=9, column=0, padx=5, pady=5, sticky="W")
+detail_resolution_var = tk.StringVar(value="1024")
+detail_resolution_entry = ttk.Entry(scrollable_frame, textvariable=detail_resolution_var, width=10)
+detail_resolution_entry.grid(row=9, column=1, padx=5, pady=5)
+detail_resolution_entry.bind("<Return>", evaluate_resolution)
 
 # Mask map section title
 ttk.Label(scrollable_frame, text="Mask Map", style="TLabel", font=("Arial", 12, "bold")).grid(row=10, column=0, columnspan=4, pady=(0, 10))
