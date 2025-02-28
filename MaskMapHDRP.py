@@ -119,10 +119,16 @@ def generate_detail_map():
     detail_map_preview_label.config(image=img_tk)
     detail_map_preview_label.image = img_tk
     
-    # Show the button to insert the detail map into the mask map
-    insert_detail_btn.grid()
+    # Show the button to save the detail map
+    save_detail_btn.grid()
     
     status_label.config(text="✅ Detail Map Generated!", foreground="green")
+
+def save_detail_map():
+    save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG file", "*.png")])
+    if save_path:
+        detail_map.save(save_path)
+        status_label.config(text=f"✅ Saved: {save_path}", foreground="green")
 
 def insert_detail_map():
     global detail_map
@@ -214,52 +220,57 @@ generate_detail_btn.grid(row=6, column=0, columnspan=3, pady=10)
 detail_map_preview_label = ttk.Label(scrollable_frame, style="TLabel")
 detail_map_preview_label.grid(row=7, column=1, padx=5, pady=5)
 
+# Save detail map button
+save_detail_btn = ttk.Button(scrollable_frame, text="Save Detail Map", style="TButton", command=save_detail_map)
+save_detail_btn.grid(row=8, column=0, columnspan=3, pady=10)
+save_detail_btn.grid_remove()
+
 # Insert detail map button
 insert_detail_btn = ttk.Button(scrollable_frame, text="Insert Detail Map", style="TButton", command=insert_detail_map)
-insert_detail_btn.grid(row=8, column=0, columnspan=3, pady=10)
+insert_detail_btn.grid(row=9, column=0, columnspan=3, pady=10)
 insert_detail_btn.grid_remove()
 
 # Mask map section title
-ttk.Label(scrollable_frame, text="Mask Map", style="TLabel", font=("Arial", 12, "bold")).grid(row=9, column=0, columnspan=4, pady=(0, 10))
+ttk.Label(scrollable_frame, text="Mask Map", style="TLabel", font=("Arial", 12, "bold")).grid(row=10, column=0, columnspan=4, pady=(0, 10))
 
-for i, (channel, name) in enumerate({"R": "Metallic", "G": "AO", "B": "Detail Map (Optional)", "A": "Smoothness"}.items()):
-    ttk.Label(scrollable_frame, text=name, style="TLabel").grid(row=i+10, column=0, padx=5, pady=5, sticky="W")
+for i, (channel, name) in enumerate({"R": "Metallic", "G": "AO", "B": "Detail Mask (Optional)", "A": "Smoothness"}.items()):
+    ttk.Label(scrollable_frame, text=name, style="TLabel").grid(row=i+11, column=0, padx=5, pady=5, sticky="W")
     
     preview_label = tk.Label(scrollable_frame, text="Insert Image", bg="#444444", width=20, height=10)
-    preview_label.grid(row=i+10, column=1, padx=5, pady=5)
+    preview_label.grid(row=i+11, column=1, padx=5, pady=5)
     preview_label.drop_target_register(DND_FILES)
     preview_label.dnd_bind('<<Drop>>', lambda e, c=channel: on_drop(e, c))
     previews[channel] = preview_label
     
     chk = ttk.Checkbutton(scrollable_frame, text="Invert", variable=invert_vars[channel], style="TCheckbutton", command=lambda c=channel: update_preview(c))
-    chk.grid(row=i+10, column=2, padx=5, pady=5)
+    chk.grid(row=i+11, column=2, padx=5, pady=5)
     
     clear_btn = ttk.Button(scrollable_frame, text="Clear", style="TButton", command=lambda c=channel: clear_image(c))
-    clear_btn.grid(row=i+10, column=3, padx=5, pady=5)
+    clear_btn.grid(row=i+11, column=3, padx=5, pady=5)
 
 # Resolution label and entry
 resolution_label = ttk.Label(scrollable_frame, text="Resolution:", style="TLabel")
-resolution_label.grid(row=14, column=0, padx=5, pady=5, sticky="W")
+resolution_label.grid(row=15, column=0, padx=5, pady=5, sticky="W")
 resolution_var = tk.StringVar(value="1024")
 resolution_entry = ttk.Entry(scrollable_frame, textvariable=resolution_var, width=10)
-resolution_entry.grid(row=14, column=1, padx=5, pady=5)
+resolution_entry.grid(row=15, column=1, padx=5, pady=5)
 resolution_entry.bind("<Return>", evaluate_resolution)
 
 # Generate mask map button
 generate_btn = ttk.Button(scrollable_frame, text="Generate Mask Map", style="TButton", command=generate_mask_map)
-generate_btn.grid(row=15, column=0, columnspan=3, pady=10)
+generate_btn.grid(row=16, column=0, columnspan=3, pady=10)
 
 # Mask map preview label
 mask_preview_label = ttk.Label(scrollable_frame, style="TLabel")
-mask_preview_label.grid(row=16, column=1, padx=5, pady=5)
+mask_preview_label.grid(row=17, column=1, padx=5, pady=5)
 
 # Save mask map button
 save_btn = ttk.Button(scrollable_frame, text="Save Mask Map", style="TButton", command=save_mask_map)
-save_btn.grid(row=17, column=0, columnspan=3, pady=10)
+save_btn.grid(row=18, column=0, columnspan=3, pady=10)
 save_btn.grid_remove()
 
 # Status label
 status_label = ttk.Label(scrollable_frame, text="", style="TLabel")
-status_label.grid(row=18, column=0, columnspan=3, pady=5)
+status_label.grid(row=19, column=0, columnspan=3, pady=5)
 
 root.mainloop()
