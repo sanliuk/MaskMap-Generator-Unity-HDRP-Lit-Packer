@@ -153,6 +153,39 @@ def desaturate_image(channel):
         detail_images[channel] = img
         update_detail_preview(channel)
 
+def clear_unpacked_images():
+    for channel in unpacked_images:
+        unpacked_images[channel] = None
+        unpack_previews[channel].config(image='', text='No Image')
+        unpack_save_buttons[channel].grid_remove()
+
+def unpack_image():
+    filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.png")])
+    if filepath:
+        img = Image.open(filepath).convert("RGBA")
+        r, g, b, a = img.split()
+        size = (int(unpack_resolution_var.get()), int(unpack_resolution_var.get()))
+        unpacked_images["R"] = r.resize(size)
+        unpacked_images["G"] = g.resize(size)
+        unpacked_images["B"] = b.resize(size)
+        unpacked_images["A"] = a.resize(size)
+        update_unpack_previews()
+
+def update_unpack_previews():
+    for channel in unpacked_images:
+        img = unpacked_images[channel].copy()
+        img.thumbnail((150, 150))
+        img_tk = ImageTk.PhotoImage(img)
+        unpack_previews[channel].config(image=img_tk)
+        unpack_previews[channel].image = img_tk
+        unpack_save_buttons[channel].grid()
+
+def save_unpacked_image(channel):
+    save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG file", "*.png")])
+    if save_path:
+        unpacked_images[channel].save(save_path)
+        status_label.config(text=f"✅ Saved: {save_path}", foreground="green")
+
 # Configure UI
 root = TkinterDnD.Tk()
 root.title("Mask Map Generator")
@@ -178,6 +211,10 @@ previews = {}
 detail_images = {"R": None, "G": None, "B": None, "A": None}
 detail_invert_vars = {channel: BooleanVar() for channel in detail_images}
 detail_previews = {}
+
+unpacked_images = {"R": None, "G": None, "B": None, "A": None}
+unpack_previews = {}
+unpack_save_buttons = {}
 
 style = ttk.Style()
 style.configure("Dark.TFrame", background="#232323")  # Dark gray background
@@ -276,6 +313,37 @@ mask_preview_label.grid(row=17, column=1, padx=5, pady=5)
 save_btn = ttk.Button(scrollable_frame, text="Save Mask Map", style="TButton", command=save_mask_map)
 save_btn.grid(row=18, column=0, columnspan=3, pady=10)
 save_btn.grid_remove()
+
+# Unpack section title
+ttk.Label(scrollable_frame, text="Unpack Image", style="TLabel", font=("Arial", 12, "bold")).grid(row=20, column=0, columnspan=4, pady=(20, 10))
+
+# Load image button for unpacking
+load_unpack_btn = ttk.Button(scrollable_frame, text="Load Image", style="TButton", command=unpack_image)
+load_unpack_btn.grid(row=21, column=0, columnspan=2, pady=10)
+
+# Clear unpacked images button
+clear_unpack_btn = ttk.Button(scrollable_frame, text="Clear", style="TButton", command=clear_unpacked_images)
+clear_unpack_btn.grid(row=21, column=2, columnspan=1, pady=10)
+
+# Unpack resolution label and entry
+unpack_resolution_label = ttk.Label(scrollable_frame, text="Unpack Resolution:", style="TLabel")
+unpack_resolution_label.grid(row=21, column=3, padx=5, pady=5, sticky="W")
+unpack_resolution_var = tk.StringVar(value="1024")
+unpack_resolution_entry = ttk.Entry(scrollable_frame, textvariable=unpack_resolution_var, width=10)
+unpack_resolution_entry.grid(row=21, column=4, padx=5, pady=5)
+
+# Unpack previews and save buttons
+for i, (channel, name) in enumerate({"R": "Red Channel", "G": "Green Channel", "B": "Blue Channel", "A": "Alpha Channel"}.items()):
+    ttk.Label(scrollable_frame, text=name, style="TLabel").grid(row=22+i, column=0, padx=5, pady=5, sticky="W")
+    
+    preview_label = tk.Label(scrollable_frame, text="No Image", bg="#444444", width=20, height=10)
+    preview_label.grid(row=22+i, column=1, padx=5, pady=5)
+    unpack_previews[channel] = preview_label
+    
+    save_btn = ttk.Button(scrollable_frame, text="Save", style="TButton", command=lambda c=channel: save_unpacked_image(c))
+    save_btn.grid(row=22+i, column=2, padx=5, pady=5)
+    save_btn.grid_remove()
+    unpack_save_buttons[channel] = save_btn
 
 # Status label
 status_label = ttk.Label(scrollable_frame, text="", style="TLabel")
