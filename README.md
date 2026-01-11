@@ -44,21 +44,48 @@ From Unity's documentation: [Mask Map and Detail Map](https://docs.unity3d.com/P
 
 ---
 
-## 🏰 Installation & Setup  
+## 📥 Download (No Python Required)
+
+Download the standalone executable for your platform:
+
+| Platform | Download |
+|----------|----------|
+| **Windows** | [MaskMapGenerator.exe](https://github.com/sanliuk/MaskMap-Generator-Unity-HDRP-Lit-Packer/releases/latest) |
+| **macOS** | [MaskMapGenerator.app](https://github.com/sanliuk/MaskMap-Generator-Unity-HDRP-Lit-Packer/releases/latest) |
+
+> 💡 Just download and run - no installation required!
+
+---
+
+## 🏰 Installation & Setup (From Source)
+
+If you prefer to run from source code:
 
 1. Ensure you have **Python 3.x** installed 🐍
-2. Install the required packages by running:
+2. Install the required packages:
    ```sh
    pip install -r requirements.txt
    ```
-   Or manually:
-   ```sh
-   pip install pillow tkinterdnd2
-   ```
-3. Run the script with:
+3. Run the application:
    ```sh
    python MaskMapHDRP.py
-   ```  
+   ```
+
+---
+
+## 🔨 Building Executables
+
+To build standalone executables yourself:
+
+1. Install PyInstaller:
+   ```sh
+   pip install pyinstaller
+   ```
+2. Run the build script:
+   ```sh
+   python build.py
+   ```
+3. Find your executable in the `dist/` folder
 
 ---
 

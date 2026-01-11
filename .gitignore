@@ -5,10 +5,13 @@ __pycache__/
 *.so
 .Python
 *.egg-info/
-dist/
-build/
 eggs/
 *.egg
+
+# PyInstaller
+build/
+dist/
+*.spec
 
 # Virtual environments
 venv/
