@@ -46,14 +46,18 @@ From Unity's documentation: [Mask Map and Detail Map](https://docs.unity3d.com/P
 
 ## 🏰 Installation & Setup  
 
-1. Ensure you have **Python 3.x** installed 🐍  
-2. Install the required packages by running:  
-   ```sh  
-   pip install pillow tkinterdnd2  
-   ```  
-3. Run the script with:  
-   ```sh  
-   python mask_map_generator.py  
+1. Ensure you have **Python 3.x** installed 🐍
+2. Install the required packages by running:
+   ```sh
+   pip install -r requirements.txt
+   ```
+   Or manually:
+   ```sh
+   pip install pillow tkinterdnd2
+   ```
+3. Run the script with:
+   ```sh
+   python MaskMapHDRP.py
    ```  
 
 ---
