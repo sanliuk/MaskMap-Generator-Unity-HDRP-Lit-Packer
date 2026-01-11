@@ -103,3 +103,5 @@ Join our **Discord community** for support, discussions, and exclusive tutorials
 
 ### 🛠️ Created with ❤️ by San Liuk
 🚨 For important stuff, contact me at: [info@sanliuk.com](mailto:info@sanliuk.com) ✉️
+
+![Unity Workflow](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap4.png)
