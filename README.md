@@ -73,6 +73,9 @@ From Unity's documentation: [Mask Map and Detail Map](https://docs.unity3d.com/P
 7. *(Optional)* Insert the **Detail Map** directly into the Mask Map with one click.  
 8. **Import the Mask Map into Unity** and use it in your HDRP material! 🏆  
 
+
+![Unity Workflow](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap4.png)
+
 ---
 
 ## 📌 Notes  
@@ -103,5 +106,3 @@ Join our **Discord community** for support, discussions, and exclusive tutorials
 
 ### 🛠️ Created with ❤️ by San Liuk
 🚨 For important stuff, contact me at: [info@sanliuk.com](mailto:info@sanliuk.com) ✉️
-
-![Unity Workflow](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap4.png)
