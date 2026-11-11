@@ -19,28 +19,41 @@ From Unity's documentation: [Mask Map and Detail Map](https://docs.unity3d.com/P
 
 ## ✨ Features & Updates  
 
-- ✅ **Drag & Drop** for fast texture loading 🎯  
-- ✅ **Invert channels** with a single click ⚡  
-- ✅ **Automatic generation** of Mask Maps and Detail Maps 🎨  
-- ✅ **Real-time previews** of loaded images 👀  
-- ✅ **Custom resolution support** 📏  
-- ✅ **One-click PNG export** 💾  
+- ✅ **Three tabs**: Mask Map, Detail Map and Unpack. Everything fits on one screen 🗂️  
+- ✅ **Drag & Drop** or **click a preview / Browse…** to load textures 🎯  
+- ✅ **Invert channels** with a single click (e.g. Roughness → Smoothness) ⚡  
+- ✅ **"If empty" value per channel**: no need to create a black texture for non-metals 🎚️  
+- ✅ **Real-time previews**, with RGB and Alpha shown separately 👀  
+- ✅ **Keeps the source resolution** by default, or pick 256 – 8192. Non-square textures keep their aspect ratio 📏  
+- ✅ **Export to PNG, TGA or TIFF** 💾  
+- ✅ **16-bit textures** (e.g. from Substance or Blender) are converted correctly  
+- ✅ **Normal Map support**: automatically extracts X (A) and Y (G) for the Detail Map  
+- ✅ **Unpack** any RGBA texture into its four channels, one by one or all at once  
 - ✅ **Fully compatible with Unity HDRP** for advanced PBR rendering 🎮  
-- ✅ **Normal Map support**: Automatically extract X (A) and Y (G) for the Detail Map!  
-- ✅ **Directly insert Detail Map into the Mask Map**  
 
 ---
 
 ## 🎨 Mask Map Channels  
 
-| **Channel**  | **Content**                |  
-|-------------|----------------------------|  
-| **R (Red)**    | Metallic ⚙️               |  
-| **G (Green)**  | Ambient Occlusion 🌿      |  
-| **B (Blue)**   | Detail Map (Optional) 🔍  |  
-| **A (Alpha)**  | Smoothness ✨             |  
+| **Channel**  | **Content**                | **If empty (default)** |  
+|-------------|----------------------------|------------------------|  
+| **R (Red)**    | Metallic ⚙️               | 0 (non-metal)          |  
+| **G (Green)**  | Ambient Occlusion 🌿      | 1 (no occlusion)       |  
+| **B (Blue)**   | Detail Mask 🔍 (where the Detail Map is applied) | 1 (everywhere) |  
+| **A (Alpha)**  | Smoothness ✨ (invert a Roughness map) | 0.5        |  
 
-> 💡 If an image is not loaded for a channel, a default white fill will be used.  
+> 💡 The **B channel is the Detail Mask**, not the Detail Map itself. The Detail Map is a separate texture that goes into the material's *Detail Map* slot.  
+
+## 🧩 Detail Map Channels  
+
+| **Channel**  | **Content**                       | **If empty (default)** |  
+|-------------|-----------------------------------|------------------------|  
+| **R (Red)**    | Albedo (desaturated automatically) | 0.5 (neutral)       |  
+| **G (Green)**  | Normal Y                          | 0.5 (flat)             |  
+| **B (Blue)**   | Smoothness                        | 0.5 (neutral)          |  
+| **A (Alpha)**  | Normal X                          | 0.5 (flat)             |  
+
+> 💡 Every "If empty" value can be changed in the app (0 – 1).  
 
 ---
 
@@ -91,26 +104,38 @@ To build standalone executables yourself:
 
 ## 🎮 How to Use  
 
-1. **Drag and drop or select** images for **R, G, B, and A** channels.  
-2. *(Optional)* Invert channels if needed using the checkboxes.  
-3. Set the **desired resolution**.  
-4. Click **"Generate Mask Map"** to preview the result.  
-5. Click **"Save Mask Map"** to export the final image!  
-6. *(Optional)* Load a **Normal Map** to automatically extract X and Y channels for the Detail Map.  
-7. *(Optional)* Insert the **Detail Map** directly into the Mask Map with one click.  
-8. **Import the Mask Map into Unity** and use it in your HDRP material! 🏆  
+1. Open the **Mask Map** tab.  
+2. **Drag and drop** a texture onto a channel preview, or **click the preview / Browse…** to select it.  
+3. *(Optional)* Tick **Invert** where needed. For example, a **Roughness** map must be inverted to become **Smoothness**.  
+4. *(Optional)* For channels without a texture, set the **If empty** value (e.g. Metallic = 0 for non-metallic materials).  
+5. Pick the **Resolution**. **Source** keeps the size of your textures.  
+6. Click **Generate Mask Map**, check the RGB and Alpha previews, then click **Save…** (PNG, TGA or TIFF).  
+7. *(Optional)* In the **Detail Map** tab, use **Load Normal Map…** to fill Normal X and Normal Y automatically. For a DirectX normal map, tick **Invert** on Normal Y.  
+8. *(Optional)* Use the **Unpack** tab to split an existing RGBA texture back into its channels.  
+9. **Import the textures into Unity** (see below) and use them in your HDRP Lit material! 🏆  
 
 
 ![Unity Workflow](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap4.png)
 
 ---
 
+## 🧰 Importing in Unity  
+
+For both the Mask Map and the Detail Map, in the texture **Import Settings**:  
+
+- **sRGB (Color Texture): OFF**. These are data textures, not colors. With sRGB on, AO, metallic and smoothness come out wrong.  
+- **Alpha Is Transparency: OFF**. Smoothness/Normal X live in the alpha channel and must not be treated as transparency.  
+- Compression: **High Quality (BC7)** is recommended to keep the alpha channel clean.  
+
+---
+
 ## 📌 Notes  
 
-- If you want to **add a Detail Map**, you can generate it separately and insert it into the B channel of the Mask Map.  
-- The tool supports **.png, .jpg, and .tga** formats.  
-- **Normal Map loading** is supported for generating Detail Maps.  
-- A **desaturation feature** helps you convert an image to grayscale directly from the interface.  
+- Supported input formats: **.png, .jpg, .jpeg, .tga, .tif, .tiff, .bmp** (8-bit and 16-bit).  
+- Output formats: **.png, .tga, .tif**.  
+- Textures of different sizes are resized to the output resolution. If their aspect ratios differ, the app warns you that they were stretched.  
+- Changing any input after generating disables **Save…** until you generate again, so you never export an outdated map.  
+- If drag & drop is not available on your system, clicking the previews always works.  
 
 ---
 

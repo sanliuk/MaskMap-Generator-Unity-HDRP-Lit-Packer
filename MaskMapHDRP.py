@@ -1,201 +1,42 @@
+"""Mask Map Generator for Unity HDRP (Lit shader).
+
+Packs grayscale textures into:
+  - Mask Map:   R Metallic, G Ambient Occlusion, B Detail Mask, A Smoothness
+  - Detail Map: R Albedo (desaturated), G Normal Y, B Smoothness, A Normal X
+and unpacks any RGBA texture back into its four channels.
+"""
+
+import os
+import traceback
 import tkinter as tk
-from tkinter import filedialog, BooleanVar, ttk, Canvas
-from tkinterdnd2 import TkinterDnD, DND_FILES
-from PIL import Image, ImageTk, ImageOps
+from tkinter import filedialog, messagebox, ttk
 
-def load_image(channel, filepath=None):
-    if not filepath:
-        filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.tga")])
-    if filepath:
-        img = Image.open(filepath).convert("L")
-        images[channel] = img
-        update_preview(channel)
+from PIL import Image, ImageOps, ImageTk, UnidentifiedImageError
 
-def update_preview(channel):
-    if images[channel]:
-        img = images[channel]
-        if invert_vars[channel].get():
-            img = ImageOps.invert(img)
-        img.thumbnail((150, 150))
-        img_tk = ImageTk.PhotoImage(img)
-        previews[channel].config(image=img_tk)
-        previews[channel].image = img_tk
+try:
+    from tkinterdnd2 import DND_FILES, TkinterDnD
+except ImportError:  # drag & drop is optional: clicking a preview always works
+    DND_FILES = TkinterDnD = None
 
-def clear_image(channel):
-    images[channel] = None
-    previews[channel].config(image='', text='Insert Image')
 
-def evaluate_resolution(event=None):
-    try:
-        resolution_var.set(str(eval(resolution_var.get())))
-    except:
-        pass
+# ==================== CONSTANTS ====================
 
-def generate_mask_map():
-    if None in [images["R"], images["G"], images["A"]]:
-        status_label.config(text="⚠️ Select at least R, G, and A images!", fg=COLORS["accent_danger"])
-        return
-    
-    size = (int(resolution_var.get()), int(resolution_var.get()))
-    for key in images:
-        if images[key]:
-            img = images[key].resize(size)
-            if invert_vars[key].get():
-                img = ImageOps.invert(img)
-            images[key] = img
-        else:
-            images[key] = Image.new("L", size, 255)  # Default white if missing
-    
-    global mask_map
-    mask_map = Image.merge("RGBA", (images["R"], images["G"], images["B"], images["A"]))
-    mask_map_preview = mask_map.copy()
-    mask_map_preview.thumbnail((200, 200))
-    img_tk = ImageTk.PhotoImage(mask_map_preview)
-    mask_preview_label.config(image=img_tk)
-    mask_preview_label.image = img_tk
-    
-    save_btn.pack(side="left", padx=5)
-    status_label.config(text="✅ Mask Map Generated!", fg=COLORS["accent_success"])
+OPEN_TYPES = [
+    ("Image files", "*.png *.jpg *.jpeg *.tga *.tif *.tiff *.bmp"),
+    ("All files", "*.*"),
+]
+SAVE_TYPES = [("PNG", "*.png"), ("TGA", "*.tga"), ("TIFF", "*.tif")]
+SAVE_FORMATS = {".png": "PNG", ".tga": "TGA", ".tif": "TIFF", ".tiff": "TIFF"}
 
-def save_mask_map():
-    save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG file", "*.png")])
-    if save_path:
-        mask_map.save(save_path)
-        status_label.config(text=f"✅ Saved: {save_path}", fg=COLORS["accent_success"])
+RESOLUTIONS = ["Source", "256", "512", "1024", "2048", "4096", "8192"]
+MAX_RESOLUTION = 16384
+Image.MAX_IMAGE_PIXELS = MAX_RESOLUTION * MAX_RESOLUTION
 
-def on_mouse_scroll(event):
-    canvas.yview_scroll(-1 * (event.delta // 120), "units")
+PREVIEW_SIZE = 96
+OUTPUT_PREVIEW_SIZE = 150
+SOURCE_PREVIEW_SIZE = 200
+FONT = "Segoe UI"
 
-def on_drop(event, channel):
-    filepath = event.data
-    load_image(channel, filepath)
-
-def on_drop_detail(event, channel):
-    filepath = event.data
-    load_detail_image(channel, filepath)
-
-def load_detail_image(channel, filepath=None):
-    if not filepath:
-        filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.tga")])
-    if filepath:
-        # Load Detail Albedo (R) as RGB to allow desaturation, others as grayscale
-        if channel == "R":
-            img = Image.open(filepath).convert("RGB")
-        else:
-            img = Image.open(filepath).convert("L")
-        detail_images[channel] = img
-        update_detail_preview(channel)
-
-def update_detail_preview(channel):
-    if detail_images[channel]:
-        img = detail_images[channel].copy()
-        # Convert to grayscale for preview if RGB (for invert to work)
-        if img.mode == "RGB":
-            preview_img = img.convert("L")
-        else:
-            preview_img = img
-        if detail_invert_vars[channel].get():
-            preview_img = ImageOps.invert(preview_img)
-        preview_img.thumbnail((150, 150))
-        img_tk = ImageTk.PhotoImage(preview_img)
-        detail_previews[channel].config(image=img_tk)
-        detail_previews[channel].image = img_tk
-
-def clear_detail_image(channel):
-    detail_images[channel] = None
-    detail_previews[channel].config(image='', text='Insert Image')
-
-def generate_detail_map():
-    if None in [detail_images["R"], detail_images["G"], detail_images["B"], detail_images["A"]]:
-        status_label.config(text="⚠️ Select R, G, B, and A images for detail map!", fg=COLORS["accent_danger"])
-        return
-    
-    size = (int(detail_resolution_var.get()), int(detail_resolution_var.get()))
-    for key in detail_images:
-        if detail_images[key]:
-            img = detail_images[key].resize(size)
-            # Convert to grayscale if RGB (e.g., Detail Albedo)
-            if img.mode == "RGB":
-                img = img.convert("L")
-            if detail_invert_vars[key].get():
-                img = ImageOps.invert(img)
-            detail_images[key] = img
-        else:
-            detail_images[key] = Image.new("L", size, 255)  # Default white if missing
-    
-    global detail_map
-    detail_map = Image.merge("RGBA", (detail_images["R"], detail_images["G"], detail_images["B"], detail_images["A"]))
-    detail_map_preview = detail_map.copy()
-    detail_map_preview.thumbnail((200, 200))
-    img_tk = ImageTk.PhotoImage(detail_map_preview)
-    detail_map_preview_label.config(image=img_tk)
-    detail_map_preview_label.image = img_tk
-    
-    # Show the button to save the detail map
-    save_detail_btn.pack(side="left", padx=5)
-
-    status_label.config(text="✅ Detail Map Generated!", fg=COLORS["accent_success"])
-
-def save_detail_map():
-    save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG file", "*.png")])
-    if save_path:
-        detail_map.save(save_path)
-        status_label.config(text=f"✅ Saved: {save_path}", fg=COLORS["accent_success"])
-
-def load_normal_map():
-    filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.png;*.jpg;*.tga")])
-    if filepath:
-        img = Image.open(filepath).convert("RGB")
-        detail_images["A"] = img.split()[0]  # Normal X
-        detail_images["G"] = img.split()[1]  # Normal Y
-        update_detail_preview("A")
-        update_detail_preview("G")
-
-def desaturate_image(channel):
-    if detail_images[channel]:
-        img = detail_images[channel]
-        # Convert RGB to grayscale (desaturate)
-        if img.mode == "RGB":
-            img = img.convert("L")
-        detail_images[channel] = img
-        update_detail_preview(channel)
-
-def clear_unpacked_images():
-    for channel in unpacked_images:
-        unpacked_images[channel] = None
-        unpack_previews[channel].config(image='', text='No Image')
-        unpack_save_buttons[channel].pack_forget()
-
-def unpack_image():
-    filepath = filedialog.askopenfilename(filetypes=[("Image files", "*.png")])
-    if filepath:
-        img = Image.open(filepath).convert("RGBA")
-        r, g, b, a = img.split()
-        size = (int(unpack_resolution_var.get()), int(unpack_resolution_var.get()))
-        unpacked_images["R"] = r.resize(size)
-        unpacked_images["G"] = g.resize(size)
-        unpacked_images["B"] = b.resize(size)
-        unpacked_images["A"] = a.resize(size)
-        update_unpack_previews()
-
-def update_unpack_previews():
-    for channel in unpacked_images:
-        img = unpacked_images[channel].copy()
-        img.thumbnail((150, 150))
-        img_tk = ImageTk.PhotoImage(img)
-        unpack_previews[channel].config(image=img_tk)
-        unpack_previews[channel].image = img_tk
-        unpack_save_buttons[channel].pack(side="left", padx=5)
-
-def save_unpacked_image(channel):
-    save_path = filedialog.asksaveasfilename(defaultextension=".png", filetypes=[("PNG file", "*.png")])
-    if save_path:
-        unpacked_images[channel].save(save_path)
-        status_label.config(text=f"✅ Saved: {save_path}", fg=COLORS["accent_success"])
-
-# ==================== MODERN UI CONFIGURATION ====================
-
-# Color Palette
 COLORS = {
     "bg_dark": "#1a1a2e",
     "bg_card": "#16213e",
@@ -207,6 +48,7 @@ COLORS = {
     "accent_danger": "#e53935",
     "text_primary": "#ffffff",
     "text_secondary": "#b0b0b0",
+    "text_muted": "#7a8aa6",
     "border": "#2d4a6f",
     "preview_bg": "#0a0a1a",
     "channel_r": "#ff5252",
@@ -215,350 +57,735 @@ COLORS = {
     "channel_a": "#b388ff",
 }
 
-# Configure UI
-root = TkinterDnD.Tk()
-root.title("Mask Map Generator - Unity HDRP")
-root.configure(bg=COLORS["bg_dark"])
-root.geometry("700x800")
-root.resizable(True, True)
-root.minsize(650, 600)
+# (channel, name, hint, value used when no texture is loaded)
+MASK_CHANNELS = [
+    ("R", "Metallic", "Black = non-metal", 0.0),
+    ("G", "Ambient Occlusion", "White = no occlusion", 1.0),
+    ("B", "Detail Mask", "Where the Detail Map shows", 1.0),
+    ("A", "Smoothness", "Roughness map? Tick Invert", 0.5),
+]
+DETAIL_CHANNELS = [
+    ("R", "Detail Albedo", "Desaturated automatically", 0.5),
+    ("G", "Normal Y", "Normal map green channel", 0.5),
+    ("B", "Detail Smoothness", "0.5 = neutral", 0.5),
+    ("A", "Normal X", "Normal map red channel", 0.5),
+]
+UNPACK_CHANNELS = [
+    ("R", "Red", "Mask: Metallic · Detail: Albedo"),
+    ("G", "Green", "Mask: AO · Detail: Normal Y"),
+    ("B", "Blue", "Mask: Detail Mask · Detail: Smoothness"),
+    ("A", "Alpha", "Mask: Smoothness · Detail: Normal X"),
+]
 
-# Try to set window icon (optional)
-try:
-    root.iconbitmap(default='')
-except:
-    pass
 
-canvas = Canvas(root, bg=COLORS["bg_dark"], highlightthickness=0)
-scrollbar = ttk.Scrollbar(root, orient="vertical", command=canvas.yview)
-scrollable_frame = tk.Frame(canvas, bg=COLORS["bg_dark"])
-scrollable_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+# ==================== IMAGE HELPERS (no UI) ====================
 
-canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-canvas.configure(yscrollcommand=scrollbar.set)
-canvas.pack(side="left", fill="both", expand=True)
-scrollbar.pack(side="right", fill="y")
-canvas.bind_all("<MouseWheel>", on_mouse_scroll)
+def to_gray(img):
+    """Return an 8-bit grayscale copy. 16-bit and float data is scaled, not clipped."""
+    if img.mode.startswith("I;16"):
+        img = img.convert("I")
+        return img.point(lambda v: v * (1 / 257) + 0.5).convert("L")
+    if img.mode == "I":
+        low, high = img.getextrema()
+        if high > 255:  # 16-bit data stored in a 32-bit image
+            return img.point(lambda v: v * (1 / 257) + 0.5).convert("L")
+        return img.convert("L")
+    if img.mode == "F":  # float data, expected range 0..1
+        return img.point(lambda v: v * 255 + 0.5).convert("L")
+    return img.convert("L")
 
-images = {"R": None, "G": None, "B": None, "A": None}
-invert_vars = {channel: BooleanVar() for channel in images}
-previews = {}
 
-detail_images = {"R": None, "G": None, "B": None, "A": None}
-detail_invert_vars = {channel: BooleanVar() for channel in detail_images}
-detail_previews = {}
+def to_rgb(img):
+    if img.mode.startswith("I") or img.mode == "F":
+        return to_gray(img).convert("RGB")
+    return img.convert("RGB")
 
-unpacked_images = {"R": None, "G": None, "B": None, "A": None}
-unpack_previews = {}
-unpack_save_buttons = {}
 
-# Configure ttk styles
-style = ttk.Style()
-style.theme_use('clam')
+def to_rgba(img):
+    if img.mode.startswith("I") or img.mode == "F":
+        return to_gray(img).convert("RGBA")
+    return img.convert("RGBA")
 
-# Frame styles
-style.configure("Card.TFrame", background=COLORS["bg_card"])
-style.configure("Dark.TFrame", background=COLORS["bg_dark"])
 
-# Label styles
-style.configure("TLabel", background=COLORS["bg_dark"], foreground=COLORS["text_secondary"], font=("Segoe UI", 10))
-style.configure("Card.TLabel", background=COLORS["bg_card"], foreground=COLORS["text_secondary"], font=("Segoe UI", 10))
-style.configure("Title.TLabel", background=COLORS["bg_dark"], foreground=COLORS["text_primary"], font=("Segoe UI", 14, "bold"))
-style.configure("CardTitle.TLabel", background=COLORS["bg_card"], foreground=COLORS["text_primary"], font=("Segoe UI", 12, "bold"))
-style.configure("Status.TLabel", background=COLORS["bg_dark"], foreground=COLORS["accent_success"], font=("Segoe UI", 10))
+def has_alpha(img):
+    return img.mode in ("RGBA", "LA", "PA") or (img.mode == "P" and "transparency" in img.info)
 
-# Button styles
-style.configure("Accent.TButton", background=COLORS["accent"], foreground="white", font=("Segoe UI", 10, "bold"), padding=(15, 8))
-style.map("Accent.TButton", background=[("active", COLORS["accent_hover"]), ("pressed", COLORS["accent"])])
 
-style.configure("Secondary.TButton", background=COLORS["bg_input"], foreground="white", font=("Segoe UI", 9), padding=(10, 5))
-style.map("Secondary.TButton", background=[("active", COLORS["border"])])
+def parse_resolution(text):
+    """'Source' -> None (keep the source size), '2048' -> 2048."""
+    text = text.strip()
+    if text.lower() in ("", "source"):
+        return None
+    try:
+        value = int(text)
+    except ValueError:
+        raise ValueError(f"Resolution must be a whole number or 'Source' (got '{text}').") from None
+    if not 1 <= value <= MAX_RESOLUTION:
+        raise ValueError(f"Resolution must be between 1 and {MAX_RESOLUTION}.")
+    return value
 
-style.configure("Danger.TButton", background=COLORS["accent_danger"], foreground="white", font=("Segoe UI", 9), padding=(10, 5))
-style.map("Danger.TButton", background=[("active", "#ff6659")])
 
-style.configure("Success.TButton", background=COLORS["accent_success"], foreground="white", font=("Segoe UI", 10, "bold"), padding=(15, 8))
-style.map("Success.TButton", background=[("active", "#00e676")])
+def target_size(sources, resolution):
+    """Output size: the largest source, optionally scaled so its longest side = resolution.
+    Non-square textures keep their aspect ratio."""
+    if sources:
+        ref_w, ref_h = max((im.size for im in sources), key=lambda s: s[0] * s[1])
+    elif resolution is None:
+        raise ValueError("Load at least one texture, or pick a resolution instead of 'Source'.")
+    else:
+        return resolution, resolution
+    if resolution is None:
+        return ref_w, ref_h
+    scale = resolution / max(ref_w, ref_h)
+    return max(1, round(ref_w * scale)), max(1, round(ref_h * scale))
 
-# Checkbutton styles
-style.configure("Card.TCheckbutton", background=COLORS["bg_card"], foreground=COLORS["text_secondary"], font=("Segoe UI", 9))
 
-# Entry styles
-style.configure("TEntry", fieldbackground=COLORS["bg_input"], foreground="white", padding=5)
+def pack_channels(sources, inverts, fills, resolution):
+    """Merge four grayscale sources into one RGBA image.
 
-# Helper function to create section cards
-def create_section_card(parent, title, row):
-    """Create a styled card section with title"""
+    sources:  {"R": Image or None, ...}  - never modified
+    inverts:  {"R": bool, ...}           - only applies to loaded textures
+    fills:    {"R": 0..1, ...}           - value used for channels with no texture
+    Returns (image, warning or None).
+    """
+    loaded = [im for im in sources.values() if im is not None]
+    size = target_size(loaded, resolution)
+    aspect = size[0] / size[1]
+    stretched = any(abs(im.size[0] / im.size[1] - aspect) > 0.01 for im in loaded)
+
+    bands = []
+    for ch in "RGBA":
+        src = sources[ch]
+        if src is None:
+            bands.append(Image.new("L", size, round(fills[ch] * 255)))
+            continue
+        band = src if src.size == size else src.resize(size, Image.Resampling.LANCZOS)
+        if inverts[ch]:
+            band = ImageOps.invert(band)
+        bands.append(band)
+
+    warning = "Some textures have a different aspect ratio and were stretched." if stretched else None
+    return Image.merge("RGBA", bands), warning
+
+
+def resize_to(img, resolution):
+    size = target_size([img], resolution)
+    return img if img.size == size else img.resize(size, Image.Resampling.LANCZOS)
+
+
+def save_image(img, path):
+    fmt = SAVE_FORMATS.get(os.path.splitext(path)[1].lower())
+    if fmt is None:
+        raise ValueError("Unsupported file type. Use .png, .tga or .tif.")
+    img.save(path, format=fmt)
+
+
+def base_name(path):
+    """'C:/tex/Rock_Metallic.png' -> 'Rock' (drops the last _suffix)."""
+    stem = os.path.splitext(os.path.basename(path))[0]
+    head, sep, _ = stem.rpartition("_")
+    return head if sep and head else stem
+
+
+def shorten(text, limit=24):
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+# ==================== UI WIDGETS ====================
+
+class PreviewBox:
+    """Fixed-size image preview. Optionally clickable and a drop target."""
+
+    def __init__(self, parent, size, placeholder, on_click=None):
+        self.size = size
+        self.placeholder = placeholder
+        self._photo = None
+        self.frame = tk.Frame(parent, width=size, height=size, bg=COLORS["preview_bg"],
+                              highlightthickness=1, highlightbackground=COLORS["border"])
+        self.frame.pack_propagate(False)
+        self.label = tk.Label(self.frame, text=placeholder, bg=COLORS["preview_bg"],
+                              fg=COLORS["text_muted"], font=(FONT, 9), justify="center")
+        self.label.pack(fill="both", expand=True)
+        if on_click:
+            self.label.config(cursor="hand2")
+            self.label.bind("<Button-1>", lambda e: on_click())
+
+    def show(self, img):
+        thumb = img.copy()  # never shrink the caller's image
+        thumb.thumbnail((self.size - 2, self.size - 2), Image.Resampling.LANCZOS)
+        self._photo = ImageTk.PhotoImage(thumb)
+        self.label.config(image=self._photo, text="")
+
+    def clear(self, text=None):
+        self._photo = None
+        self.label.config(image="", text=text if text is not None else self.placeholder)
+
+    def highlight(self, on):
+        self.frame.config(highlightbackground=COLORS["accent_hover"] if on else COLORS["border"])
+
+
+def make_card(parent, title):
+    """Card with a title bar. Returns (card, header, content)."""
     card = tk.Frame(parent, bg=COLORS["bg_card"], highlightbackground=COLORS["border"], highlightthickness=1)
-    card.grid(row=row, column=0, columnspan=6, sticky="ew", padx=15, pady=10)
-
-    title_label = tk.Label(card, text=title, bg=COLORS["bg_card"], fg=COLORS["text_primary"],
-                           font=("Segoe UI", 12, "bold"), anchor="w")
-    title_label.pack(fill="x", padx=15, pady=(12, 8))
-
-    separator = tk.Frame(card, bg=COLORS["border"], height=1)
-    separator.pack(fill="x", padx=15)
-
+    header = tk.Frame(card, bg=COLORS["bg_card"])
+    header.pack(fill="x", padx=15, pady=(10, 8))
+    tk.Label(header, text=title, bg=COLORS["bg_card"], fg=COLORS["text_primary"],
+             font=(FONT, 12, "bold")).pack(side="left")
+    tk.Frame(card, bg=COLORS["border"], height=1).pack(fill="x", padx=15)
     content = tk.Frame(card, bg=COLORS["bg_card"])
     content.pack(fill="both", expand=True, padx=15, pady=12)
+    return card, header, content
 
-    return content
 
-# Helper function to create channel indicator
-def create_channel_indicator(parent, channel):
-    """Create a colored channel indicator"""
+def channel_label(parent, row, channel, name, hint):
+    """Colored bar + channel letter + name/hint. Returns the info frame (for extra lines)."""
     color = COLORS[f"channel_{channel.lower()}"]
-    indicator = tk.Frame(parent, bg=color, width=4, height=40)
-    return indicator
+    tk.Frame(parent, bg=color, width=4).grid(row=row, column=0, sticky="ns", pady=4, padx=(0, 10))
+    tk.Label(parent, text=channel, bg=COLORS["bg_card"], fg=color,
+             font=(FONT, 13, "bold"), width=2).grid(row=row, column=1)
+    info = tk.Frame(parent, bg=COLORS["bg_card"])
+    info.grid(row=row, column=2, sticky="w", padx=(4, 0))
+    tk.Label(info, text=name, bg=COLORS["bg_card"], fg=COLORS["text_primary"],
+             font=(FONT, 10, "bold"), anchor="w").pack(anchor="w")
+    tk.Label(info, text=hint, bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+             font=(FONT, 9), anchor="w").pack(anchor="w")
+    return info
 
-# Helper function to create styled preview label
-def create_preview_label(parent, text="Drop Image"):
-    """Create a styled image preview label"""
-    label = tk.Label(parent, text=text, bg=COLORS["preview_bg"], fg=COLORS["text_secondary"],
-                     width=18, height=8, relief="flat", font=("Segoe UI", 9),
-                     highlightbackground=COLORS["border"], highlightthickness=1)
-    return label
 
-# ==================== APP HEADER ====================
-header_frame = tk.Frame(scrollable_frame, bg=COLORS["bg_dark"])
-header_frame.grid(row=0, column=0, columnspan=6, sticky="ew", padx=15, pady=(15, 5))
+class ChannelSlot:
+    """One input channel: preview (click or drop to load), Browse, Clear, Invert, fill value."""
 
-app_title = tk.Label(header_frame, text="Mask Map Generator", bg=COLORS["bg_dark"],
-                     fg=COLORS["text_primary"], font=("Segoe UI", 18, "bold"))
-app_title.pack(side="left")
+    def __init__(self, app, parent, row, channel, name, hint, fill, on_change):
+        self.app = app
+        self.name = name
+        self.on_change = on_change
+        self.image = None  # 8-bit "L" source at full resolution; never modified
+        self.path = None
+        self.invert = tk.BooleanVar(value=False)
+        self.fill = tk.StringVar(value=f"{fill:.2f}")
+        self.fill.trace_add("write", lambda *_: self.on_change())
 
-app_subtitle = tk.Label(header_frame, text="Unity HDRP", bg=COLORS["bg_dark"],
-                        fg=COLORS["accent"], font=("Segoe UI", 12))
-app_subtitle.pack(side="left", padx=(10, 0), pady=(5, 0))
+        info = channel_label(parent, row, channel, name, hint)
+        self.file_label = tk.Label(info, text="", bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+                                   font=(FONT, 8), anchor="w")
+        self.file_label.pack(anchor="w")
 
-# ==================== DETAIL MAP SECTION ====================
-detail_card = create_section_card(scrollable_frame, "Detail Map", row=1)
+        self.preview = PreviewBox(parent, PREVIEW_SIZE, app.drop_hint, on_click=self.browse)
+        self.preview.frame.grid(row=row, column=3, padx=12, pady=4)
+        app.enable_drop(self.preview, self.load)
 
-# Load Normal Map button at the top of detail section
-normal_map_btn = ttk.Button(detail_card, text="Load Normal Map", style="Accent.TButton", command=load_normal_map)
-normal_map_btn.grid(row=0, column=0, columnspan=5, pady=(0, 15))
+        controls = tk.Frame(parent, bg=COLORS["bg_card"])
+        controls.grid(row=row, column=4, sticky="w")
+        line1 = tk.Frame(controls, bg=COLORS["bg_card"])
+        line1.pack(anchor="w", pady=(0, 6))
+        ttk.Button(line1, text="Browse…", style="Secondary.TButton", command=self.browse).pack(side="left")
+        self.clear_btn = ttk.Button(line1, text="Clear", style="Secondary.TButton", command=self.clear)
+        self.clear_btn.pack(side="left", padx=(6, 0))
 
-# Detail map channels
-detail_channels = {"R": "Detail Albedo", "G": "Normal Y", "B": "Smoothness", "A": "Normal X"}
-for i, (channel, name) in enumerate(detail_channels.items()):
-    row_frame = tk.Frame(detail_card, bg=COLORS["bg_card"])
-    row_frame.grid(row=i+1, column=0, columnspan=5, sticky="ew", pady=4)
+        line2 = tk.Frame(controls, bg=COLORS["bg_card"])
+        line2.pack(anchor="w")
+        self.invert_chk = ttk.Checkbutton(line2, text="Invert", variable=self.invert,
+                                          style="Card.TCheckbutton", command=self._on_invert)
+        self.invert_chk.pack(side="left")
+        tk.Label(line2, text="If empty:", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                 font=(FONT, 9)).pack(side="left", padx=(12, 4))
+        self.fill_spin = ttk.Spinbox(line2, from_=0.0, to=1.0, increment=0.05, format="%.2f",
+                                     width=5, textvariable=self.fill)
+        self.fill_spin.pack(side="left")
+        self._update_state()
 
-    # Channel indicator
-    indicator = create_channel_indicator(row_frame, channel)
-    indicator.pack(side="left", fill="y", padx=(0, 10))
+    def browse(self):
+        path = filedialog.askopenfilename(parent=self.app.root, title=f"Select {self.name} texture",
+                                          filetypes=OPEN_TYPES, initialdir=self.app.last_dir)
+        if path:
+            self.load([path])
 
-    # Channel name with colored letter
-    name_frame = tk.Frame(row_frame, bg=COLORS["bg_card"])
-    name_frame.pack(side="left", fill="y")
+    def load(self, paths):
+        img = self.app.open_image(paths[0])
+        if img is not None:
+            self.set_image(to_gray(img), paths[0])
+            self.app.status(f"Loaded {os.path.basename(paths[0])} into {self.name}.")
 
-    channel_letter = tk.Label(name_frame, text=channel, bg=COLORS["bg_card"],
-                              fg=COLORS[f"channel_{channel.lower()}"], font=("Segoe UI", 11, "bold"), width=2)
-    channel_letter.pack(side="left")
+    def set_image(self, img, path, note=""):
+        self.image, self.path = img, path
+        w, h = img.size
+        self.file_label.config(text=f"{shorten(os.path.basename(path) + note)} · {w}×{h}")
+        self._refresh()
+        self._update_state()
+        self.on_change()
 
-    name_label = tk.Label(name_frame, text=name, bg=COLORS["bg_card"],
-                          fg=COLORS["text_secondary"], font=("Segoe UI", 10), width=14, anchor="w")
-    name_label.pack(side="left", padx=(5, 0))
+    def clear(self):
+        self.image = self.path = None
+        self.file_label.config(text="")
+        self._refresh()
+        self._update_state()
+        self.on_change()
 
-    # Preview label
-    preview_label = create_preview_label(row_frame)
-    preview_label.pack(side="left", padx=10)
-    preview_label.drop_target_register(DND_FILES)
-    preview_label.dnd_bind('<<Drop>>', lambda e, c=channel: on_drop_detail(e, c))
-    detail_previews[channel] = preview_label
+    def fill_value(self):
+        try:
+            value = float(self.fill.get().replace(",", "."))
+        except ValueError:
+            value = -1
+        if not 0 <= value <= 1:
+            raise ValueError(f"'If empty' value for {self.name} must be a number between 0 and 1.")
+        return value
 
-    # Buttons frame
-    btn_frame = tk.Frame(row_frame, bg=COLORS["bg_card"])
-    btn_frame.pack(side="left", padx=5)
+    def _on_invert(self):
+        self._refresh()
+        self.on_change()
 
-    chk = ttk.Checkbutton(btn_frame, text="Invert", variable=detail_invert_vars[channel],
-                          style="Card.TCheckbutton", command=lambda c=channel: update_detail_preview(c))
-    chk.pack(side="left", padx=2)
+    def _refresh(self):
+        if self.image is None:
+            self.preview.clear()
+        else:
+            self.preview.show(ImageOps.invert(self.image) if self.invert.get() else self.image)
 
-    clear_btn = ttk.Button(btn_frame, text="Clear", style="Secondary.TButton",
-                           command=lambda c=channel: clear_detail_image(c))
-    clear_btn.pack(side="left", padx=2)
+    def _update_state(self):
+        loaded = self.image is not None
+        self.invert_chk.state(["!disabled"] if loaded else ["disabled"])
+        self.clear_btn.state(["!disabled"] if loaded else ["disabled"])
+        self.fill_spin.state(["disabled"] if loaded else ["!disabled"])
 
-    if channel == "R":
-        desaturate_btn = ttk.Button(btn_frame, text="Desaturate", style="Secondary.TButton",
-                                    command=lambda c=channel: desaturate_image(c))
-        desaturate_btn.pack(side="left", padx=2)
 
-# Detail resolution and generate section
-detail_bottom = tk.Frame(detail_card, bg=COLORS["bg_card"])
-detail_bottom.grid(row=6, column=0, columnspan=5, sticky="ew", pady=(15, 0))
+def resolution_picker(app, parent, on_change=None):
+    row = tk.Frame(parent, bg=COLORS["bg_card"])
+    tk.Label(row, text="Resolution:", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+             font=(FONT, 10)).pack(side="left")
+    var = tk.StringVar(value="Source")
+    ttk.Combobox(row, textvariable=var, values=RESOLUTIONS, width=8).pack(side="left", padx=(6, 0))
+    if on_change:
+        var.trace_add("write", lambda *_: on_change())
+    return row, var
 
-res_label = tk.Label(detail_bottom, text="Resolution:", bg=COLORS["bg_card"],
-                     fg=COLORS["text_secondary"], font=("Segoe UI", 10))
-res_label.pack(side="left")
 
-detail_resolution_var = tk.StringVar(value="1024")
-detail_resolution_entry = tk.Entry(detail_bottom, textvariable=detail_resolution_var, width=8,
-                                   bg=COLORS["bg_input"], fg="white", font=("Segoe UI", 10),
-                                   relief="flat", insertbackground="white")
-detail_resolution_entry.pack(side="left", padx=(5, 15))
-detail_resolution_entry.bind("<Return>", evaluate_resolution)
+class PackSection:
+    """A tab that packs four grayscale inputs into one RGBA texture."""
 
-generate_detail_btn = ttk.Button(detail_bottom, text="Generate Detail Map", style="Accent.TButton",
-                                 command=generate_detail_map)
-generate_detail_btn.pack(side="left", padx=5)
+    def __init__(self, app, tab, title, output_stem, channels, alpha_name, note):
+        self.app = app
+        self.title = title
+        self.output_stem = output_stem
+        self.result = None
 
-save_detail_btn = ttk.Button(detail_bottom, text="Save", style="Success.TButton", command=save_detail_map)
-save_detail_btn.pack(side="left", padx=5)
-save_detail_btn.pack_forget()
+        tab.columnconfigure(0, weight=1)
+        tab.rowconfigure(0, weight=1)
+        inputs_card, self.inputs_header, inputs = make_card(tab, "Inputs")
+        inputs_card.grid(row=0, column=0, sticky="nsew", padx=(15, 8), pady=12)
+        inputs.columnconfigure(2, minsize=200)  # loading a file must not shift the controls
+        self.slots = {}
+        for i, (ch, name, hint, fill) in enumerate(channels):
+            self.slots[ch] = ChannelSlot(app, inputs, i, ch, name, hint, fill, self.invalidate)
+        tk.Label(inputs, text=note, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=(FONT, 9),
+                 justify="left", anchor="w").grid(row=len(channels), column=0, columnspan=5,
+                                                  sticky="w", pady=(10, 0))
 
-# Detail map preview
-detail_preview_frame = tk.Frame(detail_card, bg=COLORS["bg_card"])
-detail_preview_frame.grid(row=7, column=0, columnspan=5, pady=10)
-detail_map_preview_label = tk.Label(detail_preview_frame, bg=COLORS["bg_card"])
-detail_map_preview_label.pack()
+        out_card, _, out = make_card(tab, "Output")
+        out_card.grid(row=0, column=1, sticky="nsew", padx=(8, 15), pady=12)
+        res_row, self.resolution = resolution_picker(app, out, self.invalidate)
+        res_row.pack(anchor="w")
 
-# ==================== MASK MAP SECTION ====================
-mask_card = create_section_card(scrollable_frame, "Mask Map", row=2)
+        buttons = tk.Frame(out, bg=COLORS["bg_card"])
+        buttons.pack(anchor="w", pady=(12, 12))
+        ttk.Button(buttons, text=f"Generate {title}", style="Accent.TButton",
+                   command=self.generate).pack(side="left")
+        self.save_btn = ttk.Button(buttons, text="Save…", style="Success.TButton", command=self.save)
+        self.save_btn.pack(side="left", padx=(8, 0))
+        self.save_btn.state(["disabled"])
 
-# Mask map channels
-mask_channels = {"R": "Metallic", "G": "Ambient Occlusion", "B": "Detail Mask", "A": "Smoothness"}
-for i, (channel, name) in enumerate(mask_channels.items()):
-    row_frame = tk.Frame(mask_card, bg=COLORS["bg_card"])
-    row_frame.grid(row=i, column=0, columnspan=5, sticky="ew", pady=4)
+        self.rgb_preview = self._output_preview(out, "RGB")
+        self.alpha_preview = self._output_preview(out, f"Alpha · {alpha_name}")
+        self.size_label = tk.Label(out, text="", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                                   font=(FONT, 9))
+        self.size_label.pack(anchor="w", pady=(6, 0))
 
-    # Channel indicator
-    indicator = create_channel_indicator(row_frame, channel)
-    indicator.pack(side="left", fill="y", padx=(0, 10))
+    def _output_preview(self, parent, caption):
+        tk.Label(parent, text=caption, bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                 font=(FONT, 9)).pack(anchor="w", pady=(4, 2))
+        box = PreviewBox(parent, OUTPUT_PREVIEW_SIZE, "Not generated")
+        box.frame.pack(anchor="w")
+        return box
 
-    # Channel name with colored letter
-    name_frame = tk.Frame(row_frame, bg=COLORS["bg_card"])
-    name_frame.pack(side="left", fill="y")
+    def invalidate(self):
+        """Inputs changed: the last result no longer matches, so it can't be saved."""
+        if self.result is None:
+            return
+        self.result = None
+        self.save_btn.state(["disabled"])
+        self.rgb_preview.clear()
+        self.alpha_preview.clear()
+        self.size_label.config(text="Inputs changed: generate again")
 
-    channel_letter = tk.Label(name_frame, text=channel, bg=COLORS["bg_card"],
-                              fg=COLORS[f"channel_{channel.lower()}"], font=("Segoe UI", 11, "bold"), width=2)
-    channel_letter.pack(side="left")
+    def generate(self):
+        try:
+            resolution = parse_resolution(self.resolution.get())
+            fills = {ch: slot.fill_value() for ch, slot in self.slots.items()}
+            sources = {ch: slot.image for ch, slot in self.slots.items()}
+            inverts = {ch: slot.invert.get() for ch, slot in self.slots.items()}
+            result, warning = pack_channels(sources, inverts, fills, resolution)
+        except ValueError as e:
+            self.app.status(str(e), "error")
+            return
+        self.result = result
+        self.rgb_preview.show(result.convert("RGB"))
+        self.alpha_preview.show(result.getchannel("A"))
+        self.save_btn.state(["!disabled"])
+        w, h = result.size
+        self.size_label.config(text=f"{w} × {h} px")
+        if warning:
+            self.app.status(f"{self.title} generated ({w}×{h}). {warning}", "warning")
+        else:
+            self.app.status(f"{self.title} generated ({w}×{h}). Click Save to export it.", "success")
 
-    # Add (Optional) indicator for B channel
-    display_name = name if channel != "B" else name + " (Opt)"
-    name_label = tk.Label(name_frame, text=display_name, bg=COLORS["bg_card"],
-                          fg=COLORS["text_secondary"], font=("Segoe UI", 10), width=16, anchor="w")
-    name_label.pack(side="left", padx=(5, 0))
+    def save(self):
+        if self.result is None:
+            return
+        first = next((s.path for s in self.slots.values() if s.path), None)
+        name = f"{base_name(first)}_{self.output_stem}.png" if first else f"{self.output_stem}.png"
+        path = self.app.ask_save_path(name, os.path.dirname(first) if first else None)
+        if path and self.app.save(self.result, path):
+            self.app.status(f"Saved {os.path.normpath(path)}", "success")
 
-    # Preview label
-    preview_label = create_preview_label(row_frame)
-    preview_label.pack(side="left", padx=10)
-    preview_label.drop_target_register(DND_FILES)
-    preview_label.dnd_bind('<<Drop>>', lambda e, c=channel: on_drop(e, c))
-    previews[channel] = preview_label
 
-    # Buttons frame
-    btn_frame = tk.Frame(row_frame, bg=COLORS["bg_card"])
-    btn_frame.pack(side="left", padx=5)
+class UnpackSection:
+    """A tab that splits an RGBA texture into four grayscale files."""
 
-    chk = ttk.Checkbutton(btn_frame, text="Invert", variable=invert_vars[channel],
-                          style="Card.TCheckbutton", command=lambda c=channel: update_preview(c))
-    chk.pack(side="left", padx=2)
+    def __init__(self, app, tab):
+        self.app = app
+        self.path = None
+        self.channels = {ch: None for ch, _, _ in UNPACK_CHANNELS}
 
-    clear_btn = ttk.Button(btn_frame, text="Clear", style="Secondary.TButton",
-                           command=lambda c=channel: clear_image(c))
-    clear_btn.pack(side="left", padx=2)
+        src_card, _, src = make_card(tab, "Source")
+        src_card.grid(row=0, column=0, sticky="nsew", padx=(15, 8), pady=12)
+        self.preview = PreviewBox(src, SOURCE_PREVIEW_SIZE, app.drop_hint + "\nan RGBA texture",
+                                  on_click=self.browse)
+        self.preview.frame.pack(anchor="w")
+        app.enable_drop(self.preview, self.load)
+        self.info = tk.Label(src, text="", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                             font=(FONT, 9), justify="left", anchor="w", wraplength=SOURCE_PREVIEW_SIZE)
+        self.info.pack(anchor="w", pady=(6, 10))
+        buttons = tk.Frame(src, bg=COLORS["bg_card"])
+        buttons.pack(anchor="w")
+        ttk.Button(buttons, text="Load Image…", style="Accent.TButton", command=self.browse).pack(side="left")
+        self.clear_btn = ttk.Button(buttons, text="Clear", style="Danger.TButton", command=self.clear)
+        self.clear_btn.pack(side="left", padx=(8, 0))
+        res_row, self.resolution = resolution_picker(app, src)
+        res_row.pack(anchor="w", pady=(14, 0))
+        tk.Label(src, text="Applied when saving.", bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+                 font=(FONT, 9)).pack(anchor="w")
 
-# Mask resolution and generate section
-mask_bottom = tk.Frame(mask_card, bg=COLORS["bg_card"])
-mask_bottom.grid(row=5, column=0, columnspan=5, sticky="ew", pady=(15, 0))
+        ch_card, ch_header, rows = make_card(tab, "Channels")
+        ch_card.grid(row=0, column=1, sticky="nsew", padx=(8, 15), pady=12)
+        tab.columnconfigure(1, weight=1)
+        tab.rowconfigure(0, weight=1)
+        self.save_all_btn = ttk.Button(ch_header, text="Save All…", style="Success.TButton",
+                                       command=self.save_all)
+        self.save_all_btn.pack(side="right")
 
-res_label2 = tk.Label(mask_bottom, text="Resolution:", bg=COLORS["bg_card"],
-                      fg=COLORS["text_secondary"], font=("Segoe UI", 10))
-res_label2.pack(side="left")
+        self.previews, self.save_buttons = {}, {}
+        for i, (ch, name, hint) in enumerate(UNPACK_CHANNELS):
+            channel_label(rows, i, ch, name, hint)
+            box = PreviewBox(rows, PREVIEW_SIZE, "—")
+            box.frame.grid(row=i, column=3, padx=12, pady=4)
+            btn = ttk.Button(rows, text="Save…", style="Secondary.TButton",
+                             command=lambda c=ch: self.save_channel(c))
+            btn.grid(row=i, column=4, sticky="w")
+            self.previews[ch], self.save_buttons[ch] = box, btn
+        self._update_state()
 
-resolution_var = tk.StringVar(value="1024")
-resolution_entry = tk.Entry(mask_bottom, textvariable=resolution_var, width=8,
-                            bg=COLORS["bg_input"], fg="white", font=("Segoe UI", 10),
-                            relief="flat", insertbackground="white")
-resolution_entry.pack(side="left", padx=(5, 15))
-resolution_entry.bind("<Return>", evaluate_resolution)
+    def browse(self):
+        path = filedialog.askopenfilename(parent=self.app.root, title="Select texture to unpack",
+                                          filetypes=OPEN_TYPES, initialdir=self.app.last_dir)
+        if path:
+            self.load([path])
 
-generate_btn = ttk.Button(mask_bottom, text="Generate Mask Map", style="Accent.TButton",
-                          command=generate_mask_map)
-generate_btn.pack(side="left", padx=5)
+    def load(self, paths):
+        img = self.app.open_image(paths[0])
+        if img is None:
+            return
+        rgba = to_rgba(img)
+        self.path = paths[0]
+        self.channels = dict(zip("RGBA", rgba.split()))
+        self.preview.show(rgba.convert("RGB"))
+        for ch, band in self.channels.items():
+            self.previews[ch].show(band)
+        w, h = rgba.size
+        alpha_note = "" if has_alpha(img) else "\nNo alpha channel: A is white."
+        self.info.config(text=f"{os.path.basename(self.path)}\n{w} × {h} px · {img.mode}{alpha_note}")
+        self._update_state()
+        self.app.status(f"Unpacked {os.path.basename(self.path)}.")
 
-save_btn = ttk.Button(mask_bottom, text="Save", style="Success.TButton", command=save_mask_map)
-save_btn.pack(side="left", padx=5)
-save_btn.pack_forget()
+    def clear(self):
+        self.path = None
+        self.channels = {ch: None for ch in self.channels}
+        self.preview.clear()
+        for box in self.previews.values():
+            box.clear()
+        self.info.config(text="")
+        self._update_state()
 
-# Mask map preview
-mask_preview_frame = tk.Frame(mask_card, bg=COLORS["bg_card"])
-mask_preview_frame.grid(row=6, column=0, columnspan=5, pady=10)
-mask_preview_label = tk.Label(mask_preview_frame, bg=COLORS["bg_card"])
-mask_preview_label.pack()
+    def _resolution(self):
+        try:
+            return parse_resolution(self.resolution.get())
+        except ValueError as e:
+            self.app.status(str(e), "error")
+            raise
 
-# ==================== UNPACK SECTION ====================
-unpack_card = create_section_card(scrollable_frame, "Unpack Image", row=3)
+    def save_channel(self, ch):
+        try:
+            resolution = self._resolution()
+        except ValueError:
+            return
+        path = self.app.ask_save_path(f"{base_name(self.path)}_{ch}.png", os.path.dirname(self.path))
+        if path and self.app.save(resize_to(self.channels[ch], resolution), path):
+            self.app.status(f"Saved {os.path.normpath(path)}", "success")
 
-# Unpack controls
-unpack_controls = tk.Frame(unpack_card, bg=COLORS["bg_card"])
-unpack_controls.grid(row=0, column=0, columnspan=5, sticky="ew", pady=(0, 15))
+    def save_all(self):
+        try:
+            resolution = self._resolution()
+        except ValueError:
+            return
+        folder = filedialog.askdirectory(parent=self.app.root, title="Save channels to folder",
+                                         initialdir=os.path.dirname(self.path))
+        if not folder:
+            return
+        stem = os.path.splitext(os.path.basename(self.path))[0]
+        targets = {ch: os.path.join(folder, f"{stem}_{ch}.png") for ch in self.channels}
+        existing = [os.path.basename(p) for p in targets.values() if os.path.exists(p)]
+        if existing and not messagebox.askyesno(
+                "Overwrite files?", "These files already exist:\n\n" + "\n".join(existing) +
+                "\n\nOverwrite them?", parent=self.app.root):
+            return
+        for ch, path in targets.items():
+            if not self.app.save(resize_to(self.channels[ch], resolution), path):
+                return
+        self.app.status(f"Saved 4 channels to {os.path.normpath(folder)}", "success")
 
-load_unpack_btn = ttk.Button(unpack_controls, text="Load Image", style="Accent.TButton", command=unpack_image)
-load_unpack_btn.pack(side="left", padx=(0, 10))
+    def _update_state(self):
+        loaded = self.path is not None
+        for btn in (self.clear_btn, self.save_all_btn, *self.save_buttons.values()):
+            btn.state(["!disabled"] if loaded else ["disabled"])
 
-clear_unpack_btn = ttk.Button(unpack_controls, text="Clear All", style="Danger.TButton", command=clear_unpacked_images)
-clear_unpack_btn.pack(side="left", padx=5)
 
-res_label3 = tk.Label(unpack_controls, text="Resolution:", bg=COLORS["bg_card"],
-                      fg=COLORS["text_secondary"], font=("Segoe UI", 10))
-res_label3.pack(side="left", padx=(20, 5))
+# ==================== APP ====================
 
-unpack_resolution_var = tk.StringVar(value="1024")
-unpack_resolution_entry = tk.Entry(unpack_controls, textvariable=unpack_resolution_var, width=8,
-                                   bg=COLORS["bg_input"], fg="white", font=("Segoe UI", 10),
-                                   relief="flat", insertbackground="white")
-unpack_resolution_entry.pack(side="left")
+class App:
+    def __init__(self):
+        self.root, self.dnd = self._create_root()
+        self.drop_hint = "Drop or click" if self.dnd else "Click to browse"
+        self.last_dir = None
 
-# Unpack previews
-unpack_channels = {"R": "Red", "G": "Green", "B": "Blue", "A": "Alpha"}
-for i, (channel, name) in enumerate(unpack_channels.items()):
-    row_frame = tk.Frame(unpack_card, bg=COLORS["bg_card"])
-    row_frame.grid(row=i+1, column=0, columnspan=5, sticky="ew", pady=4)
+        root = self.root
+        root.title("Mask Map Generator - Unity HDRP")
+        root.configure(bg=COLORS["bg_dark"])
+        root.geometry("940x700")
+        root.minsize(880, 640)
+        root.report_callback_exception = self._on_error
+        self._setup_styles()
 
-    # Channel indicator
-    indicator = create_channel_indicator(row_frame, channel)
-    indicator.pack(side="left", fill="y", padx=(0, 10))
+        header = tk.Frame(root, bg=COLORS["bg_dark"])
+        header.pack(fill="x", padx=18, pady=(14, 6))
+        tk.Label(header, text="Mask Map Generator", bg=COLORS["bg_dark"], fg=COLORS["text_primary"],
+                 font=(FONT, 18, "bold")).pack(side="left")
+        tk.Label(header, text="Unity HDRP Lit", bg=COLORS["bg_dark"], fg=COLORS["accent_hover"],
+                 font=(FONT, 12)).pack(side="left", padx=(10, 0), pady=(5, 0))
+        if not self.dnd:
+            tk.Label(header, text="Drag & drop unavailable: click a preview to browse",
+                     bg=COLORS["bg_dark"], fg=COLORS["accent_warning"], font=(FONT, 9)).pack(side="right")
 
-    # Channel name
-    name_frame = tk.Frame(row_frame, bg=COLORS["bg_card"])
-    name_frame.pack(side="left", fill="y")
+        status_bar = tk.Frame(root, bg=COLORS["bg_card"])
+        status_bar.pack(side="bottom", fill="x")
+        self.status_label = tk.Label(status_bar, text="Ready", bg=COLORS["bg_card"], anchor="w",
+                                     fg=COLORS["text_secondary"], font=(FONT, 10))
+        self.status_label.pack(fill="x", padx=18, pady=6)
 
-    channel_letter = tk.Label(name_frame, text=channel, bg=COLORS["bg_card"],
-                              fg=COLORS[f"channel_{channel.lower()}"], font=("Segoe UI", 11, "bold"), width=2)
-    channel_letter.pack(side="left")
+        notebook = ttk.Notebook(root)
+        notebook.pack(fill="both", expand=True, padx=3, pady=(4, 0))
+        mask_tab, detail_tab, unpack_tab = (tk.Frame(notebook, bg=COLORS["bg_dark"]) for _ in range(3))
+        notebook.add(mask_tab, text="Mask Map")
+        notebook.add(detail_tab, text="Detail Map")
+        notebook.add(unpack_tab, text="Unpack")
 
-    name_label = tk.Label(name_frame, text=name + " Channel", bg=COLORS["bg_card"],
-                          fg=COLORS["text_secondary"], font=("Segoe UI", 10), width=14, anchor="w")
-    name_label.pack(side="left", padx=(5, 0))
+        PackSection(self, mask_tab, "Mask Map", "MaskMap", MASK_CHANNELS, "Smoothness",
+                    "Empty channels use their 'If empty' value (0–1).\n"
+                    "In Unity, import with sRGB (Color Texture) OFF.")
+        self.detail = PackSection(self, detail_tab, "Detail Map", "DetailMap", DETAIL_CHANNELS,
+                                  "Normal X",
+                                  "Empty channels default to 0.5 = neutral (no effect).\n"
+                                  "DirectX normal map? Tick Invert on Normal Y.")
+        normal_btn = ttk.Button(self.detail.inputs_header, text="Load Normal Map…",
+                                style="Secondary.TButton", command=self.browse_normal_map)
+        normal_btn.pack(side="right")
+        self.enable_drop(normal_btn, self.load_normal_map)
+        UnpackSection(self, unpack_tab)
 
-    # Preview label
-    preview_label = create_preview_label(row_frame, text="No Image")
-    preview_label.pack(side="left", padx=10)
-    unpack_previews[channel] = preview_label
+    # ---------- setup ----------
 
-    # Save button
-    save_btn = ttk.Button(row_frame, text="Save", style="Success.TButton",
-                          command=lambda c=channel: save_unpacked_image(c))
-    save_btn.pack(side="left", padx=5)
-    save_btn.pack_forget()
-    unpack_save_buttons[channel] = save_btn
+    @staticmethod
+    def _create_root():
+        root = tk.Tk()
+        if TkinterDnD is None:
+            return root, False
+        try:
+            TkinterDnD._require(root)  # loads the native tkdnd library
+            return root, True
+        except Exception:  # e.g. no tkdnd binary for this platform
+            return root, False
 
-# ==================== STATUS BAR ====================
-status_frame = tk.Frame(scrollable_frame, bg=COLORS["bg_dark"])
-status_frame.grid(row=4, column=0, columnspan=6, sticky="ew", padx=15, pady=(10, 20))
+    def _setup_styles(self):
+        c = COLORS
+        style = ttk.Style()
+        style.theme_use("clam")
 
-status_label = tk.Label(status_frame, text="Ready", bg=COLORS["bg_dark"],
-                        fg=COLORS["text_secondary"], font=("Segoe UI", 10))
-status_label.pack(side="left")
+        def flat_button(name, bg, hover, font_size=9, bold=False, padding=(10, 5)):
+            style.configure(name, background=bg, foreground="white", bordercolor=bg, lightcolor=bg,
+                            darkcolor=bg, focuscolor=bg, padding=padding,
+                            font=(FONT, font_size, "bold" if bold else "normal"))
+            style.map(name,
+                      background=[("disabled", c["bg_card"]), ("pressed", bg), ("active", hover)],
+                      bordercolor=[("disabled", c["border"]), ("active", hover)],
+                      lightcolor=[("disabled", c["bg_card"]), ("active", hover)],
+                      darkcolor=[("disabled", c["bg_card"]), ("active", hover)],
+                      foreground=[("disabled", c["text_muted"])])
 
-# ==================== FOOTER ====================
-footer_frame = tk.Frame(scrollable_frame, bg=COLORS["bg_dark"])
-footer_frame.grid(row=5, column=0, columnspan=6, sticky="ew", padx=15, pady=(0, 15))
+        flat_button("Accent.TButton", c["accent"], c["accent_hover"], 10, True, (15, 8))
+        flat_button("Success.TButton", "#00a043", c["accent_success"], 10, True, (15, 8))
+        flat_button("Secondary.TButton", c["bg_input"], c["border"])
+        flat_button("Danger.TButton", c["accent_danger"], "#ff6659", 10, True, (15, 8))
 
-footer_text = tk.Label(footer_frame, text="Unity HDRP Mask Map Generator", bg=COLORS["bg_dark"],
-                       fg=COLORS["border"], font=("Segoe UI", 9))
-footer_text.pack()
+        style.configure("Card.TCheckbutton", background=c["bg_card"], foreground=c["text_secondary"],
+                        font=(FONT, 9), indicatorbackground=c["bg_input"], indicatorforeground="white",
+                        focuscolor=c["bg_card"])
+        style.map("Card.TCheckbutton",
+                  background=[("active", c["bg_card"])],
+                  foreground=[("disabled", c["text_muted"]), ("active", "white")],
+                  indicatorbackground=[("disabled", c["bg_card"]), ("selected", c["accent"])])
 
-root.mainloop()
+        for name in ("TSpinbox", "TCombobox"):
+            style.configure(name, fieldbackground=c["bg_input"], background=c["bg_input"],
+                            foreground="white", arrowcolor="white", bordercolor=c["border"],
+                            lightcolor=c["bg_input"], darkcolor=c["bg_input"], insertcolor="white",
+                            selectbackground=c["accent"], selectforeground="white")
+            style.map(name,
+                      fieldbackground=[("disabled", c["bg_card"]), ("readonly", c["bg_input"])],
+                      foreground=[("disabled", c["text_muted"])],
+                      arrowcolor=[("disabled", c["text_muted"])])
+        self.root.option_add("*TCombobox*Listbox.background", c["bg_input"])
+        self.root.option_add("*TCombobox*Listbox.foreground", "white")
+        self.root.option_add("*TCombobox*Listbox.selectBackground", c["accent"])
+
+        style.configure("TNotebook", background=c["bg_dark"], borderwidth=0, tabmargins=(15, 4, 15, 0),
+                        bordercolor=c["bg_dark"], lightcolor=c["bg_dark"], darkcolor=c["bg_dark"])
+        style.configure("TNotebook.Tab", background=c["bg_card"], foreground=c["text_secondary"],
+                        padding=(20, 8), font=(FONT, 10, "bold"), bordercolor=c["border"],
+                        lightcolor=c["bg_card"], focuscolor=c["bg_card"])
+        style.map("TNotebook.Tab",
+                  background=[("selected", c["accent"]), ("active", c["bg_input"])],
+                  foreground=[("selected", "white"), ("active", "white")],
+                  lightcolor=[("selected", c["accent"])],
+                  focuscolor=[("selected", c["accent"])],
+                  padding=[("selected", (20, 8))],  # clam shrinks the selected tab by default
+                  expand=[("selected", (0, 0, 0, 0))])
+
+    def enable_drop(self, target, on_files):
+        """Make a widget (or a PreviewBox) accept dropped files."""
+        if not self.dnd:
+            return
+        box = target if isinstance(target, PreviewBox) else None
+        widgets = (box.frame, box.label) if box else (target,)
+
+        def drop(event):
+            if box:
+                box.highlight(False)
+            files = self.root.tk.splitlist(event.data)  # handles {paths with spaces}
+            if files:
+                on_files(list(files))
+            return event.action
+
+        def hover(on):
+            def handler(event):
+                if box:
+                    box.highlight(on)
+                return event.action
+            return handler
+
+        for widget in widgets:
+            widget.drop_target_register(DND_FILES)
+            widget.dnd_bind("<<Drop>>", drop)
+            widget.dnd_bind("<<DropEnter>>", hover(True))
+            widget.dnd_bind("<<DropLeave>>", hover(False))
+
+    # ---------- shared actions ----------
+
+    def open_image(self, path):
+        """Fully load an image (closing the file). Shows an error and returns None on failure."""
+        try:
+            with Image.open(path) as img:
+                img.load()
+                loaded = img.copy() if img.mode != "P" else img.convert("RGBA" if has_alpha(img) else "RGB")
+        except UnidentifiedImageError:
+            self.status(f"Could not open {os.path.basename(path)}: not a supported image file.", "error")
+            return None
+        except (OSError, ValueError, Image.DecompressionBombError) as e:
+            self.status(f"Could not open {os.path.basename(path)}: {e}", "error")
+            return None
+        self.last_dir = os.path.dirname(path)
+        return loaded
+
+    def ask_save_path(self, initialfile, initialdir=None):
+        file_type = tk.StringVar(value=SAVE_TYPES[0][0])
+        path = filedialog.asksaveasfilename(parent=self.root, title="Save texture", filetypes=SAVE_TYPES,
+                                            initialfile=initialfile, initialdir=initialdir or self.last_dir,
+                                            typevariable=file_type)
+        if not path:
+            return None
+        if os.path.splitext(path)[1].lower() not in SAVE_FORMATS:
+            pattern = dict(SAVE_TYPES).get(file_type.get(), "*.png")
+            path += pattern[1:]
+        return path
+
+    def save(self, img, path):
+        try:
+            save_image(img, path)
+        except (OSError, ValueError) as e:
+            self.status(f"Could not save {os.path.basename(path)}: {e}", "error")
+            messagebox.showerror("Save failed", str(e), parent=self.root)
+            return False
+        self.last_dir = os.path.dirname(path)
+        return True
+
+    def browse_normal_map(self):
+        path = filedialog.askopenfilename(parent=self.root, title="Select detail normal map",
+                                          filetypes=OPEN_TYPES, initialdir=self.last_dir)
+        if path:
+            self.load_normal_map([path])
+
+    def load_normal_map(self, paths):
+        img = self.open_image(paths[0])
+        if img is None:
+            return
+        red, green, _ = to_rgb(img).split()
+        self.detail.slots["A"].set_image(red, paths[0], " (R)")
+        self.detail.slots["G"].set_image(green, paths[0], " (G)")
+        self.status("Normal map loaded: red → Normal X (A), green → Normal Y (G).")
+
+    def status(self, text, kind="info"):
+        color = {"info": "text_secondary", "success": "accent_success",
+                 "warning": "accent_warning", "error": "accent_danger"}[kind]
+        prefix = {"success": "✓ ", "warning": "⚠ ", "error": "✕ "}.get(kind, "")
+        self.status_label.config(text=prefix + text, fg=COLORS[color])
+
+    def _on_error(self, exc_type, exc, tb):
+        traceback.print_exception(exc_type, exc, tb)
+        self.status(f"Unexpected error: {exc}", "error")
+        messagebox.showerror("Unexpected error", f"{exc_type.__name__}: {exc}", parent=self.root)
+
+    def run(self):
+        self.root.mainloop()
+
+
+def main():
+    App().run()
+
+
+if __name__ == "__main__":
+    main()
