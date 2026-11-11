@@ -77,6 +77,45 @@ UNPACK_CHANNELS = [
     ("A", "Alpha", "Mask: Smoothness · Detail: Normal X"),
 ]
 
+# Hover help: what each channel does in the HDRP Lit shader
+MASK_TIPS = {
+    "R": "Metallic. White = metal, black = non-metal.\n"
+         "Most real materials are either fully 0 or fully 1.",
+    "G": "Ambient Occlusion. White = fully lit, dark = occluded cavities and creases.",
+    "B": "Detail Mask: where the Detail Map is applied.\n"
+         "White = full detail, black = none. Leave it empty (1) if you don't use a Detail Map.",
+    "A": "Smoothness. White = glossy, black = rough.\n"
+         "Most tools export Roughness: load it here and tick Invert.",
+}
+DETAIL_TIPS = {
+    "R": "Detail albedo, desaturated automatically.\n"
+         "0.5 grey = no change; lighter or darker values brighten or darken the base color.",
+    "G": "Green channel of the detail normal map.\n"
+         "Use 'Load Normal Map…' to fill Normal X and Normal Y at once.\n"
+         "DirectX normal map? Tick Invert here.",
+    "B": "Detail smoothness. 0.5 = no change, higher = smoother, lower = rougher.",
+    "A": "Red channel of the detail normal map.\n"
+         "Use 'Load Normal Map…' to fill Normal X and Normal Y at once.",
+}
+TIP_BROWSE = "Choose a texture file (PNG, JPG, TGA, TIFF, BMP; 8 or 16-bit)."
+TIP_CLEAR = "Remove the texture. The 'If empty' value is used instead."
+TIP_INVERT = "Invert the texture (black ↔ white).\nUse it to turn a Roughness map into Smoothness."
+TIP_FILL = "Value used for this channel when no texture is loaded.\n0 = black, 1 = white."
+TIP_RESOLUTION = ("Source keeps the size of your largest texture.\n"
+                  "A number sets the longest side; non-square textures keep their proportions.")
+TIP_GENERATE = "Pack the four channels into one RGBA texture and preview it."
+TIP_SAVE = ("Save the result as PNG, TGA or TIFF.\n"
+            "Available after Generate. Changing any input requires generating again.")
+TIP_OUT_RGB = "Red, green and blue channels of the result."
+TIP_OUT_ALPHA = "Alpha channel of the result, shown in grayscale."
+TIP_NORMAL = ("Load a tangent-space normal map:\n"
+              "red → Normal X (A), green → Normal Y (G).")
+TIP_UNPACK_LOAD = "Load an RGBA texture (e.g. an existing Mask Map) to split into its four channels."
+TIP_UNPACK_CLEAR = "Remove the loaded texture."
+TIP_UNPACK_RES = "Size used when saving the channels. Source = original size."
+TIP_SAVE_ALL = "Save all four channels into a folder as <name>_R/G/B/A.png."
+TIP_SAVE_CHANNEL = "Save this channel as a grayscale image (PNG, TGA or TIFF)."
+
 
 # ==================== IMAGE HELPERS (no UI) ====================
 
@@ -193,6 +232,64 @@ def shorten(text, limit=24):
 
 # ==================== UI WIDGETS ====================
 
+class Tooltip:
+    """Dark tooltip shown below a widget after a short hover."""
+
+    DELAY_MS = 500
+
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self._after = None
+        self._tip = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._hide, add="+")
+        widget.bind("<ButtonPress>", self._hide, add="+")
+        widget.bind("<Button-1>", self._hide, add="+")  # <Button-1> bindings shadow <ButtonPress>
+
+    def _schedule(self, _event=None):
+        self._cancel()
+        self._after = self.widget.after(self.DELAY_MS, self._show)
+
+    def _cancel(self):
+        if self._after:
+            self.widget.after_cancel(self._after)
+            self._after = None
+
+    def _show(self):
+        self._after = None
+        if self._tip or not self.widget.winfo_viewable():
+            return
+        tip = tk.Toplevel(self.widget)
+        tip.wm_overrideredirect(True)
+        tip.attributes("-topmost", True)
+        tk.Label(tip, text=self.text, bg=COLORS["bg_input"], fg=COLORS["text_primary"],
+                 font=(FONT, 9), justify="left", wraplength=340, padx=10, pady=6,
+                 highlightthickness=1, highlightbackground=COLORS["accent"]).pack()
+        tip.update_idletasks()
+        # below the widget, kept inside the app window (works on any monitor)
+        top = self.widget.winfo_toplevel()
+        w, h = tip.winfo_reqwidth(), tip.winfo_reqheight()
+        x = self.widget.winfo_rootx()
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
+        x = max(top.winfo_rootx(), min(x, top.winfo_rootx() + top.winfo_width() - w))
+        if y + h > top.winfo_rooty() + top.winfo_height():
+            y = self.widget.winfo_rooty() - h - 4
+        tip.wm_geometry(f"+{x}+{y}")
+        self._tip = tip
+
+    def _hide(self, _event=None):
+        self._cancel()
+        if self._tip:
+            self._tip.destroy()
+            self._tip = None
+
+
+def add_tip(text, *widgets):
+    for widget in widgets:
+        Tooltip(widget, text)
+
+
 class PreviewBox:
     """Fixed-size image preview. Optionally clickable and a drop target."""
 
@@ -237,25 +334,30 @@ def make_card(parent, title):
     return card, header, content
 
 
-def channel_label(parent, row, channel, name, hint):
+def channel_label(parent, row, channel, name, hint, tip=None):
     """Colored bar + channel letter + name/hint. Returns the info frame (for extra lines)."""
     color = COLORS[f"channel_{channel.lower()}"]
     tk.Frame(parent, bg=color, width=4).grid(row=row, column=0, sticky="ns", pady=4, padx=(0, 10))
-    tk.Label(parent, text=channel, bg=COLORS["bg_card"], fg=color,
-             font=(FONT, 13, "bold"), width=2).grid(row=row, column=1)
+    letter = tk.Label(parent, text=channel, bg=COLORS["bg_card"], fg=color,
+                      font=(FONT, 13, "bold"), width=2)
+    letter.grid(row=row, column=1)
     info = tk.Frame(parent, bg=COLORS["bg_card"])
     info.grid(row=row, column=2, sticky="w", padx=(4, 0))
-    tk.Label(info, text=name, bg=COLORS["bg_card"], fg=COLORS["text_primary"],
-             font=(FONT, 10, "bold"), anchor="w").pack(anchor="w")
-    tk.Label(info, text=hint, bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
-             font=(FONT, 9), anchor="w").pack(anchor="w")
+    name_label = tk.Label(info, text=name, bg=COLORS["bg_card"], fg=COLORS["text_primary"],
+                          font=(FONT, 10, "bold"), anchor="w")
+    name_label.pack(anchor="w")
+    hint_label = tk.Label(info, text=hint, bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                          font=(FONT, 9), anchor="w")
+    hint_label.pack(anchor="w")
+    if tip:
+        add_tip(tip, letter, name_label, hint_label)
     return info
 
 
 class ChannelSlot:
     """One input channel: preview (click or drop to load), Browse, Clear, Invert, fill value."""
 
-    def __init__(self, app, parent, row, channel, name, hint, fill, on_change):
+    def __init__(self, app, parent, row, channel, name, hint, fill, on_change, tip):
         self.app = app
         self.name = name
         self.on_change = on_change
@@ -265,7 +367,7 @@ class ChannelSlot:
         self.fill = tk.StringVar(value=f"{fill:.2f}")
         self.fill.trace_add("write", lambda *_: self.on_change())
 
-        info = channel_label(parent, row, channel, name, hint)
+        info = channel_label(parent, row, channel, name, hint, tip)
         self.file_label = tk.Label(info, text="", bg=COLORS["bg_card"], fg=COLORS["text_muted"],
                                    font=(FONT, 8), anchor="w")
         self.file_label.pack(anchor="w")
@@ -273,12 +375,14 @@ class ChannelSlot:
         self.preview = PreviewBox(parent, PREVIEW_SIZE, app.drop_hint, on_click=self.browse)
         self.preview.frame.grid(row=row, column=3, padx=12, pady=4)
         app.enable_drop(self.preview, self.load)
+        add_tip(f"{tip}\n\n{app.drop_tip}", self.preview.label)
 
         controls = tk.Frame(parent, bg=COLORS["bg_card"])
         controls.grid(row=row, column=4, sticky="w")
         line1 = tk.Frame(controls, bg=COLORS["bg_card"])
         line1.pack(anchor="w", pady=(0, 6))
-        ttk.Button(line1, text="Browse…", style="Secondary.TButton", command=self.browse).pack(side="left")
+        browse_btn = ttk.Button(line1, text="Browse…", style="Secondary.TButton", command=self.browse)
+        browse_btn.pack(side="left")
         self.clear_btn = ttk.Button(line1, text="Clear", style="Secondary.TButton", command=self.clear)
         self.clear_btn.pack(side="left", padx=(6, 0))
 
@@ -287,11 +391,17 @@ class ChannelSlot:
         self.invert_chk = ttk.Checkbutton(line2, text="Invert", variable=self.invert,
                                           style="Card.TCheckbutton", command=self._on_invert)
         self.invert_chk.pack(side="left")
-        tk.Label(line2, text="If empty:", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
-                 font=(FONT, 9)).pack(side="left", padx=(12, 4))
+        fill_label = tk.Label(line2, text="If empty:", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                              font=(FONT, 9))
+        fill_label.pack(side="left", padx=(12, 4))
         self.fill_spin = ttk.Spinbox(line2, from_=0.0, to=1.0, increment=0.05, format="%.2f",
                                      width=5, textvariable=self.fill)
         self.fill_spin.pack(side="left")
+
+        add_tip(TIP_BROWSE, browse_btn)
+        add_tip(TIP_CLEAR, self.clear_btn)
+        add_tip(TIP_INVERT, self.invert_chk)
+        add_tip(TIP_FILL, fill_label, self.fill_spin)
         self._update_state()
 
     def browse(self):
@@ -347,12 +457,15 @@ class ChannelSlot:
         self.fill_spin.state(["disabled"] if loaded else ["!disabled"])
 
 
-def resolution_picker(app, parent, on_change=None):
+def resolution_picker(parent, tip, on_change=None):
     row = tk.Frame(parent, bg=COLORS["bg_card"])
-    tk.Label(row, text="Resolution:", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
-             font=(FONT, 10)).pack(side="left")
+    label = tk.Label(row, text="Resolution:", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
+                     font=(FONT, 10))
+    label.pack(side="left")
     var = tk.StringVar(value="Source")
-    ttk.Combobox(row, textvariable=var, values=RESOLUTIONS, width=8).pack(side="left", padx=(6, 0))
+    combo = ttk.Combobox(row, textvariable=var, values=RESOLUTIONS, width=8)
+    combo.pack(side="left", padx=(6, 0))
+    add_tip(tip, label, combo)
     if on_change:
         var.trace_add("write", lambda *_: on_change())
     return row, var
@@ -361,7 +474,7 @@ def resolution_picker(app, parent, on_change=None):
 class PackSection:
     """A tab that packs four grayscale inputs into one RGBA texture."""
 
-    def __init__(self, app, tab, title, output_stem, channels, alpha_name, note):
+    def __init__(self, app, tab, title, output_stem, channels, tips, alpha_name, note):
         self.app = app
         self.title = title
         self.output_stem = output_stem
@@ -374,26 +487,31 @@ class PackSection:
         inputs.columnconfigure(2, minsize=200)  # loading a file must not shift the controls
         self.slots = {}
         for i, (ch, name, hint, fill) in enumerate(channels):
-            self.slots[ch] = ChannelSlot(app, inputs, i, ch, name, hint, fill, self.invalidate)
+            self.slots[ch] = ChannelSlot(app, inputs, i, ch, name, hint, fill, self.invalidate, tips[ch])
         tk.Label(inputs, text=note, bg=COLORS["bg_card"], fg=COLORS["text_muted"], font=(FONT, 9),
                  justify="left", anchor="w").grid(row=len(channels), column=0, columnspan=5,
                                                   sticky="w", pady=(10, 0))
 
         out_card, _, out = make_card(tab, "Output")
         out_card.grid(row=0, column=1, sticky="nsew", padx=(8, 15), pady=12)
-        res_row, self.resolution = resolution_picker(app, out, self.invalidate)
+        res_row, self.resolution = resolution_picker(out, TIP_RESOLUTION, self.invalidate)
         res_row.pack(anchor="w")
 
         buttons = tk.Frame(out, bg=COLORS["bg_card"])
         buttons.pack(anchor="w", pady=(12, 12))
-        ttk.Button(buttons, text=f"Generate {title}", style="Accent.TButton",
-                   command=self.generate).pack(side="left")
+        generate_btn = ttk.Button(buttons, text=f"Generate {title}", style="Accent.TButton",
+                                  command=self.generate)
+        generate_btn.pack(side="left")
         self.save_btn = ttk.Button(buttons, text="Save…", style="Success.TButton", command=self.save)
         self.save_btn.pack(side="left", padx=(8, 0))
         self.save_btn.state(["disabled"])
+        add_tip(TIP_GENERATE, generate_btn)
+        add_tip(TIP_SAVE, self.save_btn)
 
         self.rgb_preview = self._output_preview(out, "RGB")
         self.alpha_preview = self._output_preview(out, f"Alpha · {alpha_name}")
+        add_tip(TIP_OUT_RGB, self.rgb_preview.label)
+        add_tip(TIP_OUT_ALPHA, self.alpha_preview.label)
         self.size_label = tk.Label(out, text="", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
                                    font=(FONT, 9))
         self.size_label.pack(anchor="w", pady=(6, 0))
@@ -460,15 +578,19 @@ class UnpackSection:
                                   on_click=self.browse)
         self.preview.frame.pack(anchor="w")
         app.enable_drop(self.preview, self.load)
+        add_tip(f"{TIP_UNPACK_LOAD}\n\n{app.drop_tip}", self.preview.label)
         self.info = tk.Label(src, text="", bg=COLORS["bg_card"], fg=COLORS["text_secondary"],
                              font=(FONT, 9), justify="left", anchor="w", wraplength=SOURCE_PREVIEW_SIZE)
         self.info.pack(anchor="w", pady=(6, 10))
         buttons = tk.Frame(src, bg=COLORS["bg_card"])
         buttons.pack(anchor="w")
-        ttk.Button(buttons, text="Load Image…", style="Accent.TButton", command=self.browse).pack(side="left")
+        load_btn = ttk.Button(buttons, text="Load Image…", style="Accent.TButton", command=self.browse)
+        load_btn.pack(side="left")
         self.clear_btn = ttk.Button(buttons, text="Clear", style="Danger.TButton", command=self.clear)
         self.clear_btn.pack(side="left", padx=(8, 0))
-        res_row, self.resolution = resolution_picker(app, src)
+        add_tip(TIP_UNPACK_LOAD, load_btn)
+        add_tip(TIP_UNPACK_CLEAR, self.clear_btn)
+        res_row, self.resolution = resolution_picker(src, TIP_UNPACK_RES)
         res_row.pack(anchor="w", pady=(14, 0))
         tk.Label(src, text="Applied when saving.", bg=COLORS["bg_card"], fg=COLORS["text_muted"],
                  font=(FONT, 9)).pack(anchor="w")
@@ -480,6 +602,7 @@ class UnpackSection:
         self.save_all_btn = ttk.Button(ch_header, text="Save All…", style="Success.TButton",
                                        command=self.save_all)
         self.save_all_btn.pack(side="right")
+        add_tip(TIP_SAVE_ALL, self.save_all_btn)
 
         self.previews, self.save_buttons = {}, {}
         for i, (ch, name, hint) in enumerate(UNPACK_CHANNELS):
@@ -489,6 +612,7 @@ class UnpackSection:
             btn = ttk.Button(rows, text="Save…", style="Secondary.TButton",
                              command=lambda c=ch: self.save_channel(c))
             btn.grid(row=i, column=4, sticky="w")
+            add_tip(TIP_SAVE_CHANNEL, btn)
             self.previews[ch], self.save_buttons[ch] = box, btn
         self._update_state()
 
@@ -572,6 +696,7 @@ class App:
     def __init__(self):
         self.root, self.dnd = self._create_root()
         self.drop_hint = "Drop or click" if self.dnd else "Click to browse"
+        self.drop_tip = "Drop a texture here or click to browse." if self.dnd else "Click to browse."
         self.last_dir = None
 
         root = self.root
@@ -605,17 +730,18 @@ class App:
         notebook.add(detail_tab, text="Detail Map")
         notebook.add(unpack_tab, text="Unpack")
 
-        PackSection(self, mask_tab, "Mask Map", "MaskMap", MASK_CHANNELS, "Smoothness",
+        PackSection(self, mask_tab, "Mask Map", "MaskMap", MASK_CHANNELS, MASK_TIPS, "Smoothness",
                     "Empty channels use their 'If empty' value (0–1).\n"
                     "In Unity, import with sRGB (Color Texture) OFF.")
         self.detail = PackSection(self, detail_tab, "Detail Map", "DetailMap", DETAIL_CHANNELS,
-                                  "Normal X",
+                                  DETAIL_TIPS, "Normal X",
                                   "Empty channels default to 0.5 = neutral (no effect).\n"
                                   "DirectX normal map? Tick Invert on Normal Y.")
         normal_btn = ttk.Button(self.detail.inputs_header, text="Load Normal Map…",
                                 style="Secondary.TButton", command=self.browse_normal_map)
         normal_btn.pack(side="right")
         self.enable_drop(normal_btn, self.load_normal_map)
+        add_tip(TIP_NORMAL + ("\nYou can also drop the file on this button." if self.dnd else ""), normal_btn)
         UnpackSection(self, unpack_tab)
 
     # ---------- setup ----------

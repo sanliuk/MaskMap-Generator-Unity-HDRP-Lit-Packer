@@ -22,6 +22,7 @@ From Unity's documentation: [Mask Map and Detail Map](https://docs.unity3d.com/P
 - ✅ **Three tabs**: Mask Map, Detail Map and Unpack. Everything fits on one screen 🗂️  
 - ✅ **Drag & Drop** or **click a preview / Browse…** to load textures 🎯  
 - ✅ **Invert channels** with a single click (e.g. Roughness → Smoothness) ⚡  
+- ✅ **Tooltips** on every control explain what each channel does in HDRP 💬  
 - ✅ **"If empty" value per channel**: no need to create a black texture for non-metals 🎚️  
 - ✅ **Real-time previews**, with RGB and Alpha shown separately 👀  
 - ✅ **Keeps the source resolution** by default, or pick 256 – 8192. Non-square textures keep their aspect ratio 📏  
