@@ -226,7 +226,7 @@ def base_name(path):
     return head if sep and head else stem
 
 
-def shorten(text, limit=24):
+def shorten(text, limit=28):
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
@@ -258,7 +258,7 @@ class Tooltip:
 
     def _show(self):
         self._after = None
-        if self._tip or not self.widget.winfo_viewable():
+        if self._tip or not self.text or not self.widget.winfo_viewable():
             return
         tip = tk.Toplevel(self.widget)
         tip.wm_overrideredirect(True)
@@ -369,8 +369,9 @@ class ChannelSlot:
 
         info = channel_label(parent, row, channel, name, hint, tip)
         self.file_label = tk.Label(info, text="", bg=COLORS["bg_card"], fg=COLORS["text_muted"],
-                                   font=(FONT, 8), anchor="w")
+                                   font=(FONT, 8), anchor="w", justify="left")
         self.file_label.pack(anchor="w")
+        self.file_tip = Tooltip(self.file_label, "")  # full path of the loaded file
 
         self.preview = PreviewBox(parent, PREVIEW_SIZE, app.drop_hint, on_click=self.browse)
         self.preview.frame.grid(row=row, column=3, padx=12, pady=4)
@@ -419,7 +420,8 @@ class ChannelSlot:
     def set_image(self, img, path, note=""):
         self.image, self.path = img, path
         w, h = img.size
-        self.file_label.config(text=f"{shorten(os.path.basename(path) + note)} · {w}×{h}")
+        self.file_label.config(text=f"{shorten(os.path.basename(path) + note)}\n{w} × {h} px")
+        self.file_tip.text = os.path.normpath(path)
         self._refresh()
         self._update_state()
         self.on_change()
@@ -427,6 +429,7 @@ class ChannelSlot:
     def clear(self):
         self.image = self.path = None
         self.file_label.config(text="")
+        self.file_tip.text = ""
         self._refresh()
         self._update_state()
         self.on_change()

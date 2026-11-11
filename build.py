@@ -20,7 +20,9 @@ def build():
     cmd = [
         sys.executable, "-m", "PyInstaller",
         "--name", APP_NAME,
-        "--onefile",           # Single executable file
+        # Single .exe on Windows; on macOS a .app bundle must be onedir
+        # (onefile + .app is deprecated in PyInstaller 6 and an error in 7)
+        "--onedir" if sys.platform == "darwin" else "--onefile",
         "--windowed",          # No console window (GUI app)
         "--clean",             # Clean cache before building
         "--noconfirm",         # Replace output without asking
@@ -65,15 +67,19 @@ def build():
         # Determine output path
         if sys.platform == "win32":
             exe_name = f"{APP_NAME}.exe"
+        elif sys.platform == "darwin":
+            exe_name = f"{APP_NAME}.app"
         else:
             exe_name = APP_NAME
 
         dist_path = os.path.join("dist", exe_name)
 
-        if os.path.exists(dist_path):
+        if os.path.isfile(dist_path):
             size_mb = os.path.getsize(dist_path) / (1024 * 1024)
             print(f"Executable: {dist_path}")
             print(f"Size: {size_mb:.1f} MB")
+        elif os.path.isdir(dist_path):
+            print(f"App bundle: {dist_path}")
 
         print()
         print("You can find your executable in the 'dist' folder.")

@@ -2,10 +2,13 @@
 
 Welcome to **Mask Map HDRP Lit - Unity Shader Texture Packer**! 🎨🚀  
 
-This tool allows you to create a **Mask Map** compatible with **Unity's High Definition Render Pipeline (HDRP)** by combining different textures into a single RGBA image. Now with a modern, intuitive UI and advanced new features!  
+This tool allows you to create a **Mask Map** and a **Detail Map** compatible with **Unity's High Definition Render Pipeline (HDRP)** by combining different textures into a single RGBA image. Now with a modern, intuitive UI and advanced new features!  
 
-![Mask Map Generator Screenshot](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap1.png)  
-![Mask Map Generator Screenshot](https://raw.githubusercontent.com/sanliuk/images/main/MaskMap2.png)  
+![Mask Map tab](docs/images/mask-map.png)  
+
+| Detail Map | Unpack |
+|------------|--------|
+| ![Detail Map tab](docs/images/detail-map.png) | ![Unpack tab](docs/images/unpack.png) |
 
 ---
 
@@ -65,9 +68,11 @@ Download the standalone executable for your platform:
 | Platform | Download |
 |----------|----------|
 | **Windows** | [MaskMapGenerator.exe](https://github.com/sanliuk/MaskMap-Generator-Unity-HDRP-Lit-Packer/releases/latest) |
-| **macOS** | [MaskMapGenerator.app](https://github.com/sanliuk/MaskMap-Generator-Unity-HDRP-Lit-Packer/releases/latest) |
+| **macOS** (Apple Silicon) | [MaskMapGenerator-macOS.zip](https://github.com/sanliuk/MaskMap-Generator-Unity-HDRP-Lit-Packer/releases/latest) |
 
 > 💡 Just download and run - no installation required!
+
+> 🍎 **macOS first launch**: the app is not signed, so macOS may block it. Right-click the app → **Open**. If macOS says the app is damaged, run `xattr -cr MaskMapGenerator.app` in Terminal and open it again.
 
 ---
 
@@ -100,6 +105,8 @@ To build standalone executables yourself:
    python build.py
    ```
 3. Find your executable in the `dist/` folder
+
+> 🤖 Releases are built automatically: pushing a `v*` tag runs the GitHub Actions workflow in `.github/workflows/release.yml`, which builds the Windows and macOS apps and publishes a GitHub Release with the notes from `CHANGELOG.md`.
 
 ---
 

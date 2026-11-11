@@ -1,0 +1,76 @@
+# Builds the Windows and macOS apps and publishes a GitHub Release
+# whenever a version tag is pushed:  git tag v1.2.0 && git push origin v1.2.0
+# Release notes come from the matching "## vX.Y.Z" section of CHANGELOG.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            asset: MaskMapGenerator.exe
+          - os: macos-latest
+            asset: MaskMapGenerator-macOS.zip
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt "pyinstaller==6.22.3"
+
+      - name: Build
+        run: python build.py
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: mv dist/MaskMapGenerator.exe "${{ matrix.asset }}"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: ditto -c -k --sequesterRsrc --keepParent dist/MaskMapGenerator.app "${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: ${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          heading=$(grep -m1 "^## ${TAG}\b" CHANGELOG.md || true)
+          title=${heading#"## "}
+          awk -v h="$heading" '$0 == h {found=1; next} found && /^## / {exit} found' CHANGELOG.md > notes.md
+          if [ -z "$heading" ] || [ ! -s notes.md ]; then
+            echo "::error::No '## ${TAG}' section found in CHANGELOG.md"
+            exit 1
+          fi
+          ls -la assets
+          gh release create "$TAG" assets/* --title "$title" --notes-file notes.md --verify-tag
