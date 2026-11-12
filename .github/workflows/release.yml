@@ -1,6 +1,7 @@
 # Builds the Windows and macOS apps and publishes a GitHub Release
 # whenever a version tag is pushed:  git tag v1.2.0 && git push origin v1.2.0
 # Release notes come from the matching "## vX.Y.Z" section of CHANGELOG.md.
+# The tag must match __version__ in MaskMapHDRP.py (the app's update check compares them).
 name: Release
 
 on:
@@ -8,7 +9,23 @@ on:
     tags: ["v*"]
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check tag matches __version__
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version=$(sed -n 's/^__version__ = "\([^"]*\)".*/\1/p' MaskMapHDRP.py)
+          if [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match __version__ = \"$version\" in MaskMapHDRP.py"
+            exit 1
+          fi
+
   build:
+    needs: version
     strategy:
       matrix:
         include:

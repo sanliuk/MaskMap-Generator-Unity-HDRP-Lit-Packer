@@ -6,8 +6,16 @@ Packs grayscale textures into:
 and unpacks any RGBA texture back into its four channels.
 """
 
+__version__ = "1.1.0"  # must match the release tag (vX.Y.Z): the release workflow checks it
+
+import json
 import os
+import re
+import ssl
+import threading
 import traceback
+import urllib.request
+import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -18,8 +26,18 @@ try:
 except ImportError:  # drag & drop is optional: clicking a preview always works
     DND_FILES = TkinterDnD = None
 
+try:
+    import certifi
+except ImportError:  # optional: CA bundle for Pythons that ship none (e.g. the frozen macOS app)
+    certifi = None
+
 
 # ==================== CONSTANTS ====================
+
+GITHUB_REPO = "sanliuk/MaskMap-Generator-Unity-HDRP-Lit-Packer"
+RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases/latest"
+LATEST_RELEASE_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+UPDATE_TIMEOUT_S = 5
 
 OPEN_TYPES = [
     ("Image files", "*.png *.jpg *.jpeg *.tga *.tif *.tiff *.bmp"),
@@ -228,6 +246,36 @@ def base_name(path):
 
 def shorten(text, limit=28):
     return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+# ==================== UPDATE CHECK (no UI) ====================
+
+def parse_version(text):
+    """'v1.2.0' or '1.2.0' -> (1, 2, 0). Anything else (e.g. '1.2.0-beta') -> None."""
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", (text or "").strip())
+    return tuple(map(int, match.groups())) if match else None
+
+
+def is_newer(tag, current=__version__):
+    latest, running = parse_version(tag), parse_version(current)
+    return bool(latest and running and latest > running)
+
+
+def latest_release_tag():
+    """Tag of the latest GitHub release (e.g. 'v1.2.0'), or None if it can't be checked.
+    Meant for a background thread: never raises and never touches the UI."""
+    try:
+        context = ssl.create_default_context()
+        if certifi:
+            context.load_verify_locations(certifi.where())
+        request = urllib.request.Request(LATEST_RELEASE_API, headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": f"MaskMapGenerator/{__version__}",
+        })
+        with urllib.request.urlopen(request, timeout=UPDATE_TIMEOUT_S, context=context) as response:
+            return json.load(response)["tag_name"]
+    except Exception:  # offline, rate-limited, unexpected reply…: the check is best-effort
+        return None
 
 
 # ==================== UI WIDGETS ====================
@@ -710,7 +758,7 @@ class App:
         root.report_callback_exception = self._on_error
         self._setup_styles()
 
-        header = tk.Frame(root, bg=COLORS["bg_dark"])
+        self.header = header = tk.Frame(root, bg=COLORS["bg_dark"])
         header.pack(fill="x", padx=18, pady=(14, 6))
         tk.Label(header, text="Mask Map Generator", bg=COLORS["bg_dark"], fg=COLORS["text_primary"],
                  font=(FONT, 18, "bold")).pack(side="left")
@@ -722,6 +770,8 @@ class App:
 
         status_bar = tk.Frame(root, bg=COLORS["bg_card"])
         status_bar.pack(side="bottom", fill="x")
+        tk.Label(status_bar, text=f"v{__version__}", bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+                 font=(FONT, 9)).pack(side="right", padx=(0, 18))
         self.status_label = tk.Label(status_bar, text="Ready", bg=COLORS["bg_card"], anchor="w",
                                      fg=COLORS["text_secondary"], font=(FONT, 10))
         self.status_label.pack(fill="x", padx=18, pady=6)
@@ -746,6 +796,7 @@ class App:
         self.enable_drop(normal_btn, self.load_normal_map)
         add_tip(TIP_NORMAL + ("\nYou can also drop the file on this button." if self.dnd else ""), normal_btn)
         UnpackSection(self, unpack_tab)
+        self._check_for_update()
 
     # ---------- setup ----------
 
@@ -780,6 +831,7 @@ class App:
         flat_button("Success.TButton", "#00a043", c["accent_success"], 10, True, (15, 8))
         flat_button("Secondary.TButton", c["bg_input"], c["border"])
         flat_button("Danger.TButton", c["accent_danger"], "#ff6659", 10, True, (15, 8))
+        flat_button("Update.TButton", "#00a043", c["accent_success"], 9, True, (10, 4))
 
         style.configure("Card.TCheckbutton", background=c["bg_card"], foreground=c["text_secondary"],
                         font=(FONT, 9), indicatorbackground=c["bg_input"], indicatorforeground="white",
@@ -842,6 +894,30 @@ class App:
             widget.dnd_bind("<<Drop>>", drop)
             widget.dnd_bind("<<DropEnter>>", hover(True))
             widget.dnd_bind("<<DropLeave>>", hover(False))
+
+    # ---------- update check ----------
+
+    def _check_for_update(self):
+        """Ask GitHub for the latest release in the background (Tk is polled from the main
+        thread only); if it is newer than this version, show an Update button in the header."""
+        result = []
+        worker = threading.Thread(target=lambda: result.append(latest_release_tag()), daemon=True)
+        worker.start()
+
+        def poll():
+            if worker.is_alive():
+                self.root.after(250, poll)
+            elif result and is_newer(result[0]):
+                self._show_update(result[0])
+
+        self.root.after(250, poll)
+
+    def _show_update(self, tag):
+        button = ttk.Button(self.header, text=f"⬆ Update available: {tag}", style="Update.TButton",
+                            command=lambda: webbrowser.open(RELEASES_URL))
+        button.pack(side="right")
+        add_tip(f"Version {tag} is available (you have v{__version__}).\n"
+                "Click to open the download page, then replace this app with the new file.", button)
 
     # ---------- shared actions ----------
 

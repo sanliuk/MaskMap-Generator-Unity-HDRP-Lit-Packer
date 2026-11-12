@@ -74,6 +74,12 @@ Download the standalone executable for your platform:
 
 > 🍎 **macOS first launch**: the app is not signed, so macOS may block it. Right-click the app → **Open**. If macOS says the app is damaged, run `xattr -cr MaskMapGenerator.app` in Terminal and open it again.
 
+### 🔔 Updates
+
+No fork or git needed. At startup the app asks GitHub for the latest release (it only reads the public release info). When a newer version exists, an **Update available** button appears at the top right: click it to open the download page, then replace the old file with the new one. Offline, the check is skipped silently. Your version is shown at the bottom right.
+
+> ℹ️ Versions up to **v1.1.0** don't have this check: download the latest release once by hand. To get an email for every release, click **Watch → Custom → Releases** on this repository.
+
 ---
 
 ## 🏰 Installation & Setup (From Source)
@@ -106,7 +112,7 @@ To build standalone executables yourself:
    ```
 3. Find your executable in the `dist/` folder
 
-> 🤖 Releases are built automatically: pushing a `v*` tag runs the GitHub Actions workflow in `.github/workflows/release.yml`, which builds the Windows and macOS apps and publishes a GitHub Release with the notes from `CHANGELOG.md`.
+> 🤖 Releases are built automatically: pushing a `v*` tag runs the GitHub Actions workflow in `.github/workflows/release.yml`, which builds the Windows and macOS apps and publishes a GitHub Release with the notes from `CHANGELOG.md`. Before tagging, set `__version__` in `MaskMapHDRP.py` to the same version (e.g. `1.2.0` for `v1.2.0`): the workflow stops if they differ.
 
 ---
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### ✨ New
+- **Update notice.** At startup the app checks GitHub for a newer release; if there is one, an **Update available** button appears at the top right and opens the download page. Nothing is installed automatically, and the check is skipped silently when offline.
+- The version number is shown at the bottom right.
+
 ## v1.1.0 - New UI, bug fixes and macOS build
 
 ### 🐛 Fixes
